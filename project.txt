@@ -1,0 +1,47 @@
+# interaction
+
+## 1. 核心定义
+
+希望通过Temporal Token的引入为human LLM interaction 引入一个新的维度：时间
+
+## 2. 关键技术机制
+
+### 2.1 时间编码化与生成 (Temporal Tokenization & Generation)
+
+传统 LLM 仅处理语义序列，对物理时间无感知。本架构引入**离散时间 Token**（记为 `<TICK>` 或 `-`）作为词表的一部分。 **定义**：单个 `<TICK>` Token 代表固定的物理时间长度 $\Delta t$（例如 100ms）。
+
+Temporal Token
+
+模型的输入和输出都带有Temporal Token，使得模型和用户的互动是在temporal 维度的，从而使得交互变成temporal 维度的
+
+例如 
+
+用户：我 - 今天 - 很 ———— 开心吧
+
+模型：真的吗？——-你—看起来—没那么开心
+
+2.2 Conversation flow rather than turns
+
+传统的模型和用户之间的对话通常是Turns taking的，我希望可以基于inference 进行无缝的连续对话，即使是文本的；
+
+用户：我 - 今天 - 很 ———— 开心吧—-[turn-taking][用户此时没有发送任何消息，只是模型预测Turn taking]
+
+模型：真的吗？——-你—看起来—没那么开心 ———————— [conversation-continue]
+
+模型：你怎么了,一直不说话
+
+总之LLM一直在 接受-作为时间Token，并且在时间Token 之后会一直预测[turn-taking]，[conversation-continue] 的概率，并且采样来进行连续的无缝对话；并且在对话过程中可以打断，例如下面
+
+用户：我 - 今天 - 很 ———— 开心吧—-[turn-taking]
+
+模型：真的吗？——-你—看起来—没那么开心 ———————— [conversation-continue]
+
+模型：你怎么了,一直不说话[barge-in]
+
+用户:   哎，不知道
+
+该架构提出了一种 **"Time-Aware Transformer"** 的工程实现路径。它证明了无需修改模型核心结构（Architecture-agnostic），仅通过词表扩展和推理策略调整，即可让大语言模型具备原生的时间感知能力和主观能动性（Agency），从而支持更自然的类人交流节奏。
+
+我希望实现的第一步是基于prompt 来进行实现
+1. Prompt 来让某些字符变成有意义的时间token，使得LLM 可以输入or 输出对应的token；
+2. Prompt 输入/输出的时间token 应该具有时间含义，并且可以正常的被前端界面渲染
