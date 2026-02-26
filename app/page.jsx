@@ -1180,6 +1180,46 @@ export default function Page() {
     setPromptC(buildPromptC());
   };
 
+  // ─── Export session ──────────────────────────────────────────────────────────
+
+  const exportSession = () => {
+    const sessionData = {
+      exportedAt: new Date().toISOString(),
+      config: { dtMs, quantize },
+      trial: {
+        input: {
+          raw: debugInput.rawInput,
+          temporal: debugInput.temporalInput,
+          segments: debugInput.segmentsRef.current,
+        },
+        outputs: {
+          A: { prompt: promptA, raw: outputA },
+          B: { prompt: promptB, raw: outputB },
+          C: { prompt: promptC, raw: outputC },
+        },
+      },
+      conversation: convHistory.map((t, i) => ({
+        turn: i + 1,
+        userRaw: t.userRaw,
+        userTemporal: t.userTemporal,
+        responseRaw: t.responseRaw,
+        timestamp: t.timestamp,
+      })),
+    };
+
+    const blob = new Blob([JSON.stringify(sessionData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `timetoken-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // ─── Derived ─────────────────────────────────────────────────────────────────
 
   const tokenPreview = useMemo(() => formatGap(dtMs, dtMs, true), [dtMs]);
@@ -1474,6 +1514,14 @@ export default function Page() {
         </div>
         <div className="toolbar-right">
           <ConfigDrawer configs={configs} onLoad={loadConfig} onDelete={deleteConfig} />
+          <button
+            className="secondary"
+            onClick={exportSession}
+            disabled={!debugInput.rawInput && convHistory.length === 0}
+            title="Export current session as JSON for analysis"
+          >
+            ↓ Export JSON
+          </button>
           <button className="secondary" onClick={handleReset}>
             Reset All
           </button>
