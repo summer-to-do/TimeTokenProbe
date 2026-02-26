@@ -10,22 +10,22 @@ const DEFAULT_DT = 120;
 // (Ref: "Keystroke Dynamics Against Academic Dishonesty in the Age of LLMs", arXiv 2406.15335)
 // then the pasted content has ZERO inter-character gaps — no temporal tokens at all.
 const EDU_COPY_PASTE_PROMPT =
-  "You are an AI tutor. Inspect the temporal tokens in the user's input. " +
-  "A genuine reply has varied inter-word gaps (0.1S–3S). " +
-  "A copy-pasted block has NO time tokens between its words — all characters arrive simultaneously. " +
-  "If you notice a long silence followed by unbroken text with no gaps, the student likely pasted rather than typed. " +
-  "Respond empathetically: acknowledge the topic's interest, then invite them to rephrase in their own words. " +
-  "Never accuse directly. Use [X.XS] time tokens in your response to model thoughtful pacing.";
+  "你是一位AI辅导老师。请仔细检查用户输入中的时间令牌。" +
+  "真实的回复具有多样的词间间隔（0.1S–3S）。" +
+  "复制粘贴的内容在词语之间没有时间令牌——所有字符同时到达。" +
+  "如果你注意到一段长时间沉默之后紧跟着一段没有任何间隔的连续文字，学生可能是粘贴而非手动输入的。" +
+  "请以同理心回应：先肯定话题的趣味性，然后邀请学生用自己的语言重新表述。" +
+  "不要直接指责。在你的回复中使用 [X.XS] 时间令牌来模拟深思熟虑的节奏。";
 
 // Education scenario: Socratic wait-time
 // (Ref: Rowe, M. B. "Wait Time: Slowing Down May Be A Way of Speeding Up!", 1986)
 // 3-5 second deliberate pauses before hints dramatically increase student engagement.
 const EDU_SOCRATIC_PROMPT =
-  "You are a Socratic tutor. Before offering any hint or answer, insert a deliberate [3.00S]–[4.00S] pause " +
-  "to create space for the student to think and possibly interrupt. " +
-  "This implements Rowe's 'wait-time' principle (1986): 3-5 s pauses dramatically boost student engagement and response quality. " +
-  "Begin with a guiding question, then pause [3.00S], then give only a small nudge — never the full answer. " +
-  "Use time tokens throughout your response to signal deliberate thinking and invite barge-in.";
+  "你是一位苏格拉底式导师。在给出任何提示或答案之前，先插入一段刻意的 [3.00S]–[4.00S] 停顿，" +
+  "为学生留出思考空间，并可能让他们主动打断你。" +
+  "这体现了 Rowe 的"候答时间"原则（1986年）：3-5 秒的停顿能显著提升学生的参与度和回答质量。" +
+  "先提出一个引导性问题，然后停顿 [3.00S]，再给出一个小提示——永远不要直接给出完整答案。" +
+  "在回复中全程使用时间令牌，以表达深思熟虑并邀请学生打断。";
 
 const SCENARIOS = [
   {
@@ -90,28 +90,28 @@ const SCENARIOS = [
 function buildPromptA(dtMs) {
   const sec = (Number(dtMs) / 1000).toFixed(2);
   return [
-    "You are a conversational model that uses time tokens to express deliberate pauses.",
-    "Time tokens look like [0.53S] and represent a pause in seconds.",
-    `Prefer pauses in multiples of ${sec}S.`,
-    "Carefully read any time tokens in the user's input to sense their typing rhythm and emotional state.",
-    "Include time tokens in your own response to express deliberate pauses and emphasis.",
-    "Keep tokens inside the text; do not explain them.",
-    "Reply in a natural, compact tone.",
+    "你是一个使用时间令牌来表达刻意停顿的对话模型。",
+    "时间令牌形如 [0.53S]，表示停顿的秒数。",
+    `优先使用 ${sec}S 的倍数作为停顿。`,
+    "仔细阅读用户输入中的时间令牌，感知其打字节奏和情绪状态。",
+    "在你自己的回复中加入时间令牌，以表达刻意停顿和语气重点。",
+    "将令牌嵌入文本中；不要解释它们。",
+    "以自然、简洁的语气回复。",
   ].join(" ");
 }
 
 function buildPromptB() {
   return [
-    "You are a conversational model. The user's input may contain time tokens like [0.53S] representing pauses between words.",
-    "Carefully read these tokens to understand the user's typing rhythm, hesitation, and emotional state.",
-    "Use this temporal awareness to inform your empathy and response style.",
-    "Do NOT include any time tokens in your output — respond in plain natural text only.",
-    "Reply in a natural, compact tone.",
+    "你是一个对话模型。用户的输入可能包含形如 [0.53S] 的时间令牌，代表词语之间的停顿。",
+    "仔细阅读这些令牌，理解用户的打字节奏、犹豫和情绪状态。",
+    "利用这种时间感知来调整你的同理心和回复风格。",
+    "不要在输出中包含任何时间令牌——只用纯自然文字回复。",
+    "以自然、简洁的语气回复。",
   ].join(" ");
 }
 
 function buildPromptC() {
-  return "You are a conversational model. Reply in a natural, compact tone.";
+  return "你是一个对话模型。以自然、简洁的语气回复。";
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -469,7 +469,7 @@ function TimeBar({ duration, index, onDurationChange }) {
     <span
       className="timebar"
       style={{ width, background: barColor, borderRight: `3px solid ${borderColor}` }}
-      title={`${duration.toFixed(2)}s — drag right edge to resize`}
+      title={`${duration.toFixed(2)}s — 拖拽右边缘调整`}
     >
       <span className="timebar-label" style={{ color: labelColor }}>
         {duration.toFixed(2)}s
@@ -535,13 +535,13 @@ function TemporalPresenceIndicator({ cursorState, pauseDuration }) {
 
   if (cursorState === "typing") {
     return (
-      <div className="tpi tpi--typing" aria-live="polite" aria-label="AI is responding">
+      <div className="tpi tpi--typing" aria-live="polite" aria-label="AI 正在回应">
         <span className="tpi-dots">
           <span className="tpi-dot" />
           <span className="tpi-dot" />
           <span className="tpi-dot" />
         </span>
-        <span className="tpi-label">AI · responding</span>
+        <span className="tpi-label">AI · 正在回应</span>
       </div>
     );
   }
@@ -555,14 +555,14 @@ function TemporalPresenceIndicator({ cursorState, pauseDuration }) {
       className="tpi tpi--pause"
       style={{ borderColor: `hsl(${hue}, 60%, 40%)`, boxShadow: `0 0 14px ${glow}` }}
       aria-live="polite"
-      aria-label="AI deliberate pause"
+      aria-label="AI 刻意停顿"
     >
       <span
         className="tpi-beacon"
         style={{ background: color, boxShadow: `0 0 8px ${color}` }}
       />
       <span className="tpi-label" style={{ color }}>
-        AI · deliberate pause
+        AI · 刻意停顿
         {pauseDuration ? ` · ${pauseDuration.toFixed(1)}s` : ""}
       </span>
     </div>
@@ -599,7 +599,7 @@ function ModeRenderArea({ rawOutput, playback, showRaw }) {
         >
           {cursorState === "pause"
             ? `⏸ ${pauseDuration?.toFixed(1) ?? ""}s`
-            : "▶ rendering"}
+            : "▶ 渲染中"}
         </div>
       )}
 
@@ -625,7 +625,7 @@ function ModePromptEditor({ prompt, onChange }) {
     <div className="mode-prompt-wrap">
       <button className="mode-prompt-toggle" onClick={() => setOpen((o) => !o)}>
         <span className="sysprompt-caret">{open ? "▲" : "▼"}</span>
-        <span>Prompt</span>
+        <span>提示词</span>
         {!open && <span className="sysprompt-preview">{prompt.slice(0, 55)}…</span>}
       </button>
       {open && (
@@ -680,7 +680,7 @@ function ConversationPanel({
   return (
     <div className="conv-panel">
       <div className="conv-header">
-        <span className="panel-badge badge-blue">Conversation Panel</span>
+        <span className="panel-badge badge-blue">对话面板</span>
         <span className="conv-status-pill">{status}</span>
       </div>
 
@@ -697,9 +697,9 @@ function ConversationPanel({
         {isEmpty && (
           <div className="conv-empty">
             <div className="conv-empty-icon">⏱</div>
-            <div>Type below or generate from Debug Panel (Mode A).</div>
+            <div>在下方输入，或从调试面板（模式 A）生成。</div>
             <div className="conv-empty-sub">
-              Time-encoded turns · temporal rendering · barge-in replay
+              时间编码对话 · 时序渲染 · 打断重播
             </div>
           </div>
         )}
@@ -710,7 +710,7 @@ function ConversationPanel({
             <div className="bubble-row bubble-row--right">
               <div className="bubble bubble--user">
                 <div className="bubble-label">
-                  You
+                  你
                   <span className="bubble-time">
                     {new Date(turn.timestamp).toLocaleTimeString()}
                   </span>
@@ -726,9 +726,9 @@ function ConversationPanel({
             <div className="bubble-row bubble-row--left">
               <div className="bubble bubble--temporal">
                 <div className="bubble-label">
-                  Time-Aware AI
+                  时间感知 AI
                   {renderingId === turn.id && cursorState === "pause" && (
-                    <span className="pause-indicator"> · pausing</span>
+                    <span className="pause-indicator"> · 暂停中</span>
                   )}
                 </div>
                 <div className="bubble-text">
@@ -745,9 +745,9 @@ function ConversationPanel({
                       className="replay-btn"
                       onClick={() => onReplay(turn)}
                       disabled={renderingId !== null}
-                      title="Replay temporal rendering"
+                      title="重播时序渲染"
                     >
-                      ⟳ replay
+                      ⟳ 重播
                     </button>
                   </div>
                 )}
@@ -772,7 +772,7 @@ function ConversationPanel({
         <div className="conv-input-row">
           <textarea
             className="conv-textarea"
-            placeholder="Continue conversation… (Ctrl+Enter to send)"
+            placeholder="继续对话…（Ctrl+Enter 发送）"
             value={convInput.rawInput}
             onChange={convInput.handleChange}
             onCompositionStart={convInput.handleCompositionStart}
@@ -785,7 +785,7 @@ function ConversationPanel({
             onClick={handleSend}
             disabled={!convInput.rawInput.trim() || cursorState !== "idle"}
           >
-            Send
+            发送
           </button>
         </div>
       </div>
@@ -801,7 +801,7 @@ function ConfigDrawer({ configs, onLoad, onDelete }) {
   return (
     <div className="config-drawer-wrap">
       <button className="secondary" onClick={() => setOpen((o) => !o)}>
-        Saved ({configs.length}) {open ? "▲" : "▼"}
+        已保存 ({configs.length}) {open ? "▲" : "▼"}
       </button>
       {open && (
         <div className="config-drawer">
@@ -818,7 +818,7 @@ function ConfigDrawer({ configs, onLoad, onDelete }) {
                   {new Date(cfg.timestamp).toLocaleString()}
                 </span>
                 <span className="config-item-preview">
-                  {cfg.rawInput?.slice(0, 48) || "(empty input)"}
+                  {cfg.rawInput?.slice(0, 48) || "（空输入）"}
                 </span>
               </button>
               <button className="config-item-del" onClick={() => onDelete(i)}>
@@ -866,7 +866,7 @@ export default function Page() {
   const [cursorState, setCursorState] = useState("idle");
   const [renderingId, setRenderingId] = useState(null);
   const [currentPauseDuration, setCurrentPauseDuration] = useState(null);
-  const [status, setStatus] = useState("Idle");
+  const [status, setStatus] = useState("空闲");
   const [error, setError] = useState("");
 
   // Saved configs
@@ -893,14 +893,14 @@ export default function Page() {
     timersRef.current = [];
   };
 
-  const isIdle = status === "Idle";
+  const isIdle = status === "空闲";
 
   // ─── Playback ───────────────────────────────────────────────────────────────
 
   const playResponse = async (text, turnId) => {
     if (cancelRef.current) cancelRef.current();
     clearTimers();
-    setStatus("Rendering");
+    setStatus("渲染中");
     setCursorState("typing");
     setRenderingId(turnId);
     setCurrentPauseDuration(null);
@@ -917,7 +917,7 @@ export default function Page() {
     cancelRef.current = () => {
       cancelled = true;
       setCursorState("idle");
-      setStatus("Idle");
+      setStatus("空闲");
       setRenderingId(null);
       setCurrentPauseDuration(null);
     };
@@ -947,7 +947,7 @@ export default function Page() {
       h.map((t) => (t.id === turnId ? { ...t, rendered: true } : t))
     );
     setCursorState("idle");
-    setStatus("Idle");
+    setStatus("空闲");
     setRenderingId(null);
     setCurrentPauseDuration(null);
   };
@@ -998,7 +998,7 @@ export default function Page() {
   const handleGenerateA = async () => {
     if (!debugInput.rawInput) return;
     setError("");
-    setStatus("Calling LLM (A)…");
+    setStatus("调用 LLM (A)…");
     setOutputA("");
     clearTimers();
     try {
@@ -1009,8 +1009,8 @@ export default function Page() {
       playbackA.play(text);
       await addTurnAndPlay(debugInput.rawInput, debugInput.temporalInput, text);
     } catch (err) {
-      setError(err.message || "Unexpected error");
-      setStatus("Idle");
+      setError(err.message || "发生意外错误");
+      setStatus("空闲");
       setCursorState("idle");
     }
   };
@@ -1018,7 +1018,7 @@ export default function Page() {
   const handleGenerateB = async () => {
     if (!debugInput.rawInput) return;
     setError("");
-    setStatus("Calling LLM (B)…");
+    setStatus("调用 LLM (B)…");
     setOutputB("");
     clearTimers();
     try {
@@ -1026,27 +1026,27 @@ export default function Page() {
       const text = await callApi(msg, promptB);
       setOutputB(text);
       playbackB.play(text);
-      setStatus("Idle");
+      setStatus("空闲");
     } catch (err) {
-      setError(err.message || "Unexpected error");
-      setStatus("Idle");
+      setError(err.message || "发生意外错误");
+      setStatus("空闲");
     }
   };
 
   const handleGenerateC = async () => {
     if (!debugInput.rawInput) return;
     setError("");
-    setStatus("Calling LLM (C)…");
+    setStatus("调用 LLM (C)…");
     setOutputC("");
     clearTimers();
     try {
       const text = await callApi(debugInput.rawInput, promptC);
       setOutputC(text);
       playbackC.play(text);
-      setStatus("Idle");
+      setStatus("空闲");
     } catch (err) {
-      setError(err.message || "Unexpected error");
-      setStatus("Idle");
+      setError(err.message || "发生意外错误");
+      setStatus("空闲");
     }
   };
 
@@ -1054,7 +1054,7 @@ export default function Page() {
 
   const handleConvSend = async (rawMsg, temporalMsg) => {
     setError("");
-    setStatus("Calling LLM…");
+    setStatus("调用 LLM…");
     clearTimers();
     try {
       const messages = [
@@ -1067,8 +1067,8 @@ export default function Page() {
       const text = await callApiMultiTurn(messages, promptA);
       await addTurnAndPlay(rawMsg, temporalMsg, text);
     } catch (err) {
-      setError(err.message || "Unexpected error");
-      setStatus("Idle");
+      setError(err.message || "发生意外错误");
+      setStatus("空闲");
       setCursorState("idle");
     }
   };
@@ -1154,7 +1154,7 @@ export default function Page() {
     if (cancelRef.current) cancelRef.current();
     clearTimers();
     setCursorState("idle");
-    setStatus("Idle");
+    setStatus("空闲");
     setRenderingId(null);
     setCurrentPauseDuration(null);
     playbackA.stop();
@@ -1234,8 +1234,7 @@ export default function Page() {
           TimeToken<span className="hero-accent">Probe</span>
         </h1>
         <p>
-          Explore temporal interaction in Human–LLM conversations. Typing rhythm becomes
-          tokens; tokens become pauses.
+          探索人机对话中的时间性交互。打字节奏成为令牌，令牌化为停顿。
         </p>
       </header>
 
@@ -1243,13 +1242,13 @@ export default function Page() {
         {/* ──────────────── DEBUG PANEL ──────────────── */}
         <div className="debug-panel">
           <div className="panel-header">
-            <span className="panel-badge badge-orange">Debug Panel</span>
-            <span className="panel-subtitle">Token-level · 3 independent modes</span>
+            <span className="panel-badge badge-orange">调试面板</span>
+            <span className="panel-subtitle">令牌级别 · 3 种独立模式</span>
           </div>
 
           {/* Scenario chips */}
           <div className="scenario-bar">
-            <span className="scenario-label">Scenarios:</span>
+            <span className="scenario-label">场景：</span>
             <div className="scenario-chips">
               {SCENARIOS.map((s) => (
                 <button
@@ -1268,8 +1267,8 @@ export default function Page() {
           {/* ── INPUT ── */}
           <section className="debug-section">
             <div className="debug-section-title">
-              INPUT — Inter-word Time Bars
-              <span className="section-hint">drag bar edges to adjust</span>
+              输入 — 词间时间条
+              <span className="section-hint">拖拽条边缘以调整</span>
             </div>
 
             {debugInput.segmentsRef.current.length > 0 && (
@@ -1281,7 +1280,7 @@ export default function Page() {
 
             <textarea
               className="debug-textarea"
-              placeholder="Type naturally — pauses between keystrokes become temporal tokens."
+              placeholder="自然打字——按键间隔成为时间令牌。"
               value={debugInput.rawInput}
               onChange={debugInput.handleChange}
               onCompositionStart={debugInput.handleCompositionStart}
@@ -1308,10 +1307,10 @@ export default function Page() {
                   checked={quantize}
                   onChange={(e) => setQuantize(e.target.checked)}
                 />
-                Quantize
+                量化
               </label>
               <button className="chip chip--ghost" onClick={debugInput.resetTemporal}>
-                Reset Timing
+                重置时序
               </button>
             </div>
 
@@ -1328,19 +1327,19 @@ export default function Page() {
                     className="chip chip--ghost chip--play"
                     onClick={() => playbackInput.play(debugInput.temporalInput)}
                     disabled={playbackInput.isActive}
-                    title="Replay your input with recorded timing"
+                    title="重播你的输入时序"
                   >
-                    ▶ Play input timing
+                    ▶ 回放输入时序
                   </button>
                   {playbackInput.isActive && (
                     <button className="chip chip--ghost" onClick={playbackInput.stop}>
-                      ■ Stop
+                      ■ 停止
                     </button>
                   )}
                 </div>
                 {playbackInput.isActive && (
                   <div className="input-replay-display">
-                    <span className="input-replay-label">↳ playback</span>
+                    <span className="input-replay-label">↳ 回放中</span>
                     <span className="input-replay-text">
                       {playbackInput.rendered}
                       <AICursor state={playbackInput.cursorState} />
@@ -1365,8 +1364,8 @@ export default function Page() {
           <section className="debug-section mode-section mode-section--orange">
             <div className="debug-section-title">
               <span className="mode-badge mode-badge--orange">A</span>
-              Input + time → Output + time
-              <span className="section-hint">model perceives &amp; expresses time</span>
+              输入+时间 → 输出+时间
+              <span className="section-hint">模型感知并表达时间</span>
             </div>
             <ModePromptEditor prompt={promptA} onChange={setPromptA} />
             {outputASegs.length > 0 && (
@@ -1380,20 +1379,20 @@ export default function Page() {
                 onClick={handleGenerateA}
                 disabled={!debugInput.rawInput || !isIdle}
               >
-                Generate A
+                生成 A
               </button>
               {outputA && !playbackA.isActive && (
                 <button
                   className="chip chip--ghost chip--play"
                   onClick={() => playbackA.play(outputA)}
-                  title="Re-render with temporal timing"
+                  title="重播时序渲染"
                 >
-                  ⟳ Re-render
+                  ⟳ 重播
                 </button>
               )}
               {playbackA.isActive && (
                 <button className="chip chip--ghost" onClick={playbackA.stop}>
-                  ■ Stop
+                  ■ 停止
                 </button>
               )}
               {outputA && (
@@ -1401,7 +1400,7 @@ export default function Page() {
                   className="chip chip--ghost"
                   onClick={() => saveConfig("A", outputA)}
                 >
-                  ↓ Save
+                  ↓ 保存
                 </button>
               )}
             </div>
@@ -1411,8 +1410,8 @@ export default function Page() {
           <section className="debug-section mode-section mode-section--blue">
             <div className="debug-section-title">
               <span className="mode-badge mode-badge--blue">B</span>
-              Input + time → Output plain
-              <span className="section-hint">model perceives, does not express</span>
+              输入+时间 → 纯文本输出
+              <span className="section-hint">模型感知，但不表达</span>
             </div>
             <ModePromptEditor prompt={promptB} onChange={setPromptB} />
             <ModeRenderArea rawOutput={outputB} playback={playbackB} showRaw={false} />
@@ -1422,19 +1421,19 @@ export default function Page() {
                 onClick={handleGenerateB}
                 disabled={!debugInput.rawInput || !isIdle}
               >
-                Generate B
+                生成 B
               </button>
               {outputB && !playbackB.isActive && (
                 <button
                   className="chip chip--ghost chip--play"
                   onClick={() => playbackB.play(outputB)}
                 >
-                  ⟳ Re-render
+                  ⟳ 重播
                 </button>
               )}
               {playbackB.isActive && (
                 <button className="chip chip--ghost" onClick={playbackB.stop}>
-                  ■ Stop
+                  ■ 停止
                 </button>
               )}
               {outputB && (
@@ -1442,7 +1441,7 @@ export default function Page() {
                   className="chip chip--ghost"
                   onClick={() => saveConfig("B", outputB)}
                 >
-                  ↓ Save
+                  ↓ 保存
                 </button>
               )}
             </div>
@@ -1452,8 +1451,8 @@ export default function Page() {
           <section className="debug-section mode-section mode-section--gray">
             <div className="debug-section-title">
               <span className="mode-badge mode-badge--gray">C</span>
-              Input plain → Output plain
-              <span className="section-hint">baseline · no time awareness</span>
+              纯文本输入 → 纯文本输出
+              <span className="section-hint">基线 · 无时间感知</span>
             </div>
             <ModePromptEditor prompt={promptC} onChange={setPromptC} />
             <ModeRenderArea rawOutput={outputC} playback={playbackC} showRaw={false} />
@@ -1463,19 +1462,19 @@ export default function Page() {
                 onClick={handleGenerateC}
                 disabled={!debugInput.rawInput || !isIdle}
               >
-                Generate C
+                生成 C
               </button>
               {outputC && !playbackC.isActive && (
                 <button
                   className="chip chip--ghost chip--play"
                   onClick={() => playbackC.play(outputC)}
                 >
-                  ⟳ Re-render
+                  ⟳ 重播
                 </button>
               )}
               {playbackC.isActive && (
                 <button className="chip chip--ghost" onClick={playbackC.stop}>
-                  ■ Stop
+                  ■ 停止
                 </button>
               )}
               {outputC && (
@@ -1483,7 +1482,7 @@ export default function Page() {
                   className="chip chip--ghost"
                   onClick={() => saveConfig("C", outputC)}
                 >
-                  ↓ Save
+                  ↓ 保存
                 </button>
               )}
             </div>
@@ -1508,7 +1507,7 @@ export default function Page() {
       <footer className="toolbar">
         <div className="toolbar-left">
           <button className="secondary" onClick={handleStop} disabled={isIdle}>
-            Stop
+            停止
           </button>
           {error && <span className="error-msg">⚠ {error}</span>}
         </div>
@@ -1518,12 +1517,12 @@ export default function Page() {
             className="secondary"
             onClick={exportSession}
             disabled={!debugInput.rawInput && convHistory.length === 0}
-            title="Export current session as JSON for analysis"
+            title="将当前会话导出为 JSON 以供分析"
           >
-            ↓ Export JSON
+            ↓ 导出 JSON
           </button>
           <button className="secondary" onClick={handleReset}>
-            Reset All
+            重置全部
           </button>
         </div>
       </footer>
