@@ -420,6 +420,130 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .mono-preview--plain { opacity: 0.7; border-style: solid; }
 .muted { color: var(--muted); opacity: 0.5; }
 
+/* ─── Mode Render Area ──────────────────────────────────────────────────────  */
+/* Inline temporal rendering for each debug mode section */
+
+.mode-render-area {
+  position: relative;
+  background: rgba(9, 10, 18, 0.55);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  padding: 10px 13px;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.2s;
+}
+
+.mode-render-area--active {
+  border-color: rgba(255, 255, 255, 0.18);
+  border-style: solid;
+}
+
+.mode-render-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid;
+  align-self: flex-start;
+  animation: tpi-fadein 0.15s ease;
+}
+
+.mode-render-status--typing {
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--muted);
+  background: rgba(255,255,255,0.04);
+}
+
+.mode-render-status--pause {
+  background: rgba(0,0,0,0.25);
+}
+
+.mode-render-text {
+  font-size: 0.93rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+}
+
+/* Raw temporal string shown below rendered text (Mode A only) */
+.mode-render-raw {
+  font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
+  font-size: 0.71rem;
+  color: var(--muted);
+  opacity: 0.5;
+  line-height: 1.5;
+  word-break: break-all;
+  border-top: 1px solid var(--line);
+  padding-top: 5px;
+  margin-top: 2px;
+}
+
+/* ─── Input Replay ───────────────────────────────────────────────────────────  */
+
+.input-replay-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-replay-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip--play {
+  color: var(--accent-blue);
+  border-color: rgba(123, 195, 255, 0.25);
+}
+.chip--play:hover:not(:disabled) {
+  background: rgba(123, 195, 255, 0.08);
+  border-color: rgba(123, 195, 255, 0.4);
+}
+
+.input-replay-display {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 12px;
+  background: rgba(123, 195, 255, 0.05);
+  border: 1px solid rgba(123, 195, 255, 0.12);
+  border-radius: var(--radius-sm);
+  min-height: 36px;
+  animation: tpi-fadein 0.18s ease;
+}
+
+.input-replay-label {
+  font-size: 0.68rem;
+  color: var(--accent-blue);
+  opacity: 0.65;
+  font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
+  flex-shrink: 0;
+}
+
+.input-replay-text {
+  font-size: 0.92rem;
+  color: var(--text);
+  line-height: 1.6;
+  flex: 1;
+}
+
+.input-replay-pause {
+  font-size: 0.72rem;
+  font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
+  font-weight: 600;
+  flex-shrink: 0;
+  animation: pulse-text 1.5s ease-in-out infinite;
+}
+
 /* ─── Conversation Panel ─────────────────────────────────────────────────── */
 .conv-panel {
   background: var(--card);

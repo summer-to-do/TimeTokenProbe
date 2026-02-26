@@ -360,6 +360,83 @@ function useTemporalInput(dtMs, quantize) {
   };
 }
 
+// ─── usePlayback ─────────────────────────────────────────────────────────────
+// Independent playback engine for each mode section (and input replay).
+
+function usePlayback() {
+  const [rendered, setRendered] = useState("");
+  const [cursorState, setCursorState] = useState("idle");
+  const [pauseDuration, setPauseDuration] = useState(null);
+  const timersRef = useRef([]);
+  const cancelRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach(clearTimeout);
+      if (cancelRef.current) cancelRef.current();
+    };
+  }, []);
+
+  const play = useCallback(async (text) => {
+    if (!text) return;
+    if (cancelRef.current) cancelRef.current();
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+
+    setRendered("");
+    setCursorState("typing");
+    setPauseDuration(null);
+
+    const segs = splitTemporal(text);
+    let cancelled = false;
+    let accumulated = "";
+
+    cancelRef.current = () => {
+      cancelled = true;
+      setCursorState("idle");
+      setPauseDuration(null);
+    };
+
+    for (const seg of segs) {
+      if (cancelled) return;
+      if (seg.type === "pause") {
+        const delay = Math.min(seg.value * 1000, 6000);
+        if (delay > 50) {
+          setPauseDuration(seg.value);
+          setCursorState("pause");
+          await sleep(delay, timersRef);
+          if (cancelled) return;
+          setPauseDuration(null);
+          setCursorState("typing");
+        }
+      } else {
+        accumulated += seg.value;
+        setRendered(accumulated);
+      }
+    }
+
+    setCursorState("idle");
+    setPauseDuration(null);
+    cancelRef.current = null;
+  }, []);
+
+  const stop = useCallback(() => {
+    if (cancelRef.current) cancelRef.current();
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+    setCursorState("idle");
+    setPauseDuration(null);
+    cancelRef.current = null;
+  }, []);
+
+  const reset = useCallback(() => {
+    stop();
+    setRendered("");
+  }, [stop]);
+
+  return { rendered, cursorState, pauseDuration, isActive: cursorState !== "idle", play, stop, reset };
+}
+
 // ─── TimeBar ─────────────────────────────────────────────────────────────────
 
 function TimeBar({ duration, index, onDurationChange }) {
@@ -488,6 +565,54 @@ function TemporalPresenceIndicator({ cursorState, pauseDuration }) {
         AI · deliberate pause
         {pauseDuration ? ` · ${pauseDuration.toFixed(1)}s` : ""}
       </span>
+    </div>
+  );
+}
+
+// ─── ModeRenderArea ───────────────────────────────────────────────────────────
+// Inline rendering display for each mode section.
+// For Mode A: shows rendered text + AICursor + collapsible raw temporal string.
+// For Mode B/C: shows typed-out plain text + AICursor.
+
+function ModeRenderArea({ rawOutput, playback, showRaw }) {
+  const { rendered, cursorState, pauseDuration, isActive } = playback;
+
+  // Display text: rendered while playing; stripped output when idle
+  const displayText =
+    rendered ||
+    (isActive ? "" : rawOutput?.replace(/\[\d+(?:\.\d+)?S\]/gi, " ") || "");
+
+  return (
+    <div className={`mode-render-area${isActive ? " mode-render-area--active" : ""}`}>
+      {/* Mini status badge */}
+      {isActive && (
+        <div
+          className={`mode-render-status mode-render-status--${cursorState}`}
+          style={
+            cursorState === "pause" && pauseDuration
+              ? {
+                  borderColor: `hsl(${durationToHue(pauseDuration)}, 60%, 40%)`,
+                  color: `hsl(${durationToHue(pauseDuration)}, 80%, 65%)`,
+                }
+              : {}
+          }
+        >
+          {cursorState === "pause"
+            ? `⏸ ${pauseDuration?.toFixed(1) ?? ""}s`
+            : "▶ rendering"}
+        </div>
+      )}
+
+      {/* Rendered / display text */}
+      <div className="mode-render-text">
+        {displayText || (!rawOutput && <span className="muted">…</span>)}
+        {isActive && <AICursor state={cursorState} />}
+      </div>
+
+      {/* Raw temporal string — shown for Mode A when output contains time tokens */}
+      {showRaw && rawOutput && (
+        <div className="mode-render-raw">{rawOutput}</div>
+      )}
     </div>
   );
 }
@@ -727,6 +852,13 @@ export default function Page() {
   const [outputB, setOutputB] = useState("");
   const [outputC, setOutputC] = useState("");
 
+  // Per-mode independent playback engines (debug panel)
+  const playbackA = usePlayback();
+  const playbackB = usePlayback();
+  const playbackC = usePlayback();
+  // Input replay — plays back the user's own temporal input timing
+  const playbackInput = usePlayback();
+
   // Conversation history
   const [convHistory, setConvHistory] = useState([]);
 
@@ -873,6 +1005,8 @@ export default function Page() {
       const msg = debugInput.temporalInput || debugInput.rawInput;
       const text = await callApi(msg, promptA);
       setOutputA(text);
+      // Play in debug panel (non-blocking) and conversation panel (blocking) concurrently
+      playbackA.play(text);
       await addTurnAndPlay(debugInput.rawInput, debugInput.temporalInput, text);
     } catch (err) {
       setError(err.message || "Unexpected error");
@@ -891,6 +1025,7 @@ export default function Page() {
       const msg = debugInput.temporalInput || debugInput.rawInput;
       const text = await callApi(msg, promptB);
       setOutputB(text);
+      playbackB.play(text);
       setStatus("Idle");
     } catch (err) {
       setError(err.message || "Unexpected error");
@@ -907,6 +1042,7 @@ export default function Page() {
     try {
       const text = await callApi(debugInput.rawInput, promptC);
       setOutputC(text);
+      playbackC.play(text);
       setStatus("Idle");
     } catch (err) {
       setError(err.message || "Unexpected error");
@@ -965,6 +1101,10 @@ export default function Page() {
     setOutputB("");
     setOutputC("");
     setCursorState("idle");
+    playbackA.reset();
+    playbackB.reset();
+    playbackC.reset();
+    playbackInput.reset();
     if (scenario.promptA) setPromptA(scenario.promptA);
   };
 
@@ -1017,6 +1157,10 @@ export default function Page() {
     setStatus("Idle");
     setRenderingId(null);
     setCurrentPauseDuration(null);
+    playbackA.stop();
+    playbackB.stop();
+    playbackC.stop();
+    playbackInput.stop();
   };
 
   const handleReset = () => {
@@ -1025,6 +1169,10 @@ export default function Page() {
     setOutputA("");
     setOutputB("");
     setOutputC("");
+    playbackA.reset();
+    playbackB.reset();
+    playbackC.reset();
+    playbackInput.reset();
     setConvHistory([]);
     setError("");
     setPromptA(buildPromptA(dtMs));
@@ -1127,9 +1275,50 @@ export default function Page() {
               </button>
             </div>
 
+            {/* Input temporal string (raw) */}
             <div className="mono-preview">
               {debugInput.temporalInput || <span className="muted">…</span>}
             </div>
+
+            {/* Input replay: plays back the user's own timing */}
+            {debugInput.temporalInput && (
+              <div className="input-replay-wrap">
+                <div className="input-replay-actions">
+                  <button
+                    className="chip chip--ghost chip--play"
+                    onClick={() => playbackInput.play(debugInput.temporalInput)}
+                    disabled={playbackInput.isActive}
+                    title="Replay your input with recorded timing"
+                  >
+                    ▶ Play input timing
+                  </button>
+                  {playbackInput.isActive && (
+                    <button className="chip chip--ghost" onClick={playbackInput.stop}>
+                      ■ Stop
+                    </button>
+                  )}
+                </div>
+                {playbackInput.isActive && (
+                  <div className="input-replay-display">
+                    <span className="input-replay-label">↳ playback</span>
+                    <span className="input-replay-text">
+                      {playbackInput.rendered}
+                      <AICursor state={playbackInput.cursorState} />
+                    </span>
+                    {playbackInput.cursorState === "pause" && playbackInput.pauseDuration && (
+                      <span
+                        className="input-replay-pause"
+                        style={{
+                          color: `hsl(${durationToHue(playbackInput.pauseDuration)}, 80%, 65%)`,
+                        }}
+                      >
+                        ⏸ {playbackInput.pauseDuration.toFixed(1)}s
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           {/* ── MODE A: Input+time → Output+time ── */}
@@ -1143,9 +1332,8 @@ export default function Page() {
             {outputASegs.length > 0 && (
               <TokenRow segments={outputASegs} onDurationChange={handleOutputATokenChange} />
             )}
-            <div className="mono-preview">
-              {outputA || <span className="muted">…</span>}
-            </div>
+            {/* Rendered output with temporal playback */}
+            <ModeRenderArea rawOutput={outputA} playback={playbackA} showRaw />
             <div className="mode-actions">
               <button
                 className="primary"
@@ -1154,6 +1342,20 @@ export default function Page() {
               >
                 Generate A
               </button>
+              {outputA && !playbackA.isActive && (
+                <button
+                  className="chip chip--ghost chip--play"
+                  onClick={() => playbackA.play(outputA)}
+                  title="Re-render with temporal timing"
+                >
+                  ⟳ Re-render
+                </button>
+              )}
+              {playbackA.isActive && (
+                <button className="chip chip--ghost" onClick={playbackA.stop}>
+                  ■ Stop
+                </button>
+              )}
               {outputA && (
                 <button
                   className="chip chip--ghost"
@@ -1173,9 +1375,7 @@ export default function Page() {
               <span className="section-hint">model perceives, does not express</span>
             </div>
             <ModePromptEditor prompt={promptB} onChange={setPromptB} />
-            <div className="mono-preview mono-preview--plain">
-              {outputB || <span className="muted">…</span>}
-            </div>
+            <ModeRenderArea rawOutput={outputB} playback={playbackB} showRaw={false} />
             <div className="mode-actions">
               <button
                 className="secondary"
@@ -1184,6 +1384,19 @@ export default function Page() {
               >
                 Generate B
               </button>
+              {outputB && !playbackB.isActive && (
+                <button
+                  className="chip chip--ghost chip--play"
+                  onClick={() => playbackB.play(outputB)}
+                >
+                  ⟳ Re-render
+                </button>
+              )}
+              {playbackB.isActive && (
+                <button className="chip chip--ghost" onClick={playbackB.stop}>
+                  ■ Stop
+                </button>
+              )}
               {outputB && (
                 <button
                   className="chip chip--ghost"
@@ -1203,9 +1416,7 @@ export default function Page() {
               <span className="section-hint">baseline · no time awareness</span>
             </div>
             <ModePromptEditor prompt={promptC} onChange={setPromptC} />
-            <div className="mono-preview mono-preview--plain">
-              {outputC || <span className="muted">…</span>}
-            </div>
+            <ModeRenderArea rawOutput={outputC} playback={playbackC} showRaw={false} />
             <div className="mode-actions">
               <button
                 className="secondary"
@@ -1214,6 +1425,19 @@ export default function Page() {
               >
                 Generate C
               </button>
+              {outputC && !playbackC.isActive && (
+                <button
+                  className="chip chip--ghost chip--play"
+                  onClick={() => playbackC.play(outputC)}
+                >
+                  ⟳ Re-render
+                </button>
+              )}
+              {playbackC.isActive && (
+                <button className="chip chip--ghost" onClick={playbackC.stop}>
+                  ■ Stop
+                </button>
+              )}
               {outputC && (
                 <button
                   className="chip chip--ghost"
