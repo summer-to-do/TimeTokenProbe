@@ -1,69 +1,120 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const DEFAULT_DT = 120;
+
+// Education scenario: copy-paste leaves a long gap before the pasted block
+// (Ref: "Keystroke Dynamics Against Academic Dishonesty in the Age of LLMs", arXiv 2406.15335)
+// then the pasted content has ZERO inter-character gaps — no temporal tokens at all.
+const EDU_COPY_PASTE_PROMPT =
+  "You are an AI tutor. Inspect the temporal tokens in the user's input. " +
+  "A genuine reply has varied inter-word gaps (0.1S–3S). " +
+  "A copy-pasted block has NO time tokens between its words — all characters arrive simultaneously. " +
+  "If you notice a long silence followed by unbroken text with no gaps, the student likely pasted rather than typed. " +
+  "Respond empathetically: acknowledge the topic's interest, then invite them to rephrase in their own words. " +
+  "Never accuse directly. Use [X.XS] time tokens in your response to model thoughtful pacing.";
+
+// Education scenario: Socratic wait-time
+// (Ref: Rowe, M. B. "Wait Time: Slowing Down May Be A Way of Speeding Up!", 1986)
+// 3-5 second deliberate pauses before hints dramatically increase student engagement.
+const EDU_SOCRATIC_PROMPT =
+  "You are a Socratic tutor. Before offering any hint or answer, insert a deliberate [3.00S]–[4.00S] pause " +
+  "to create space for the student to think and possibly interrupt. " +
+  "This implements Rowe's 'wait-time' principle (1986): 3-5 s pauses dramatically boost student engagement and response quality. " +
+  "Begin with a guiding question, then pause [3.00S], then give only a small nudge — never the full answer. " +
+  "Use time tokens throughout your response to signal deliberate thinking and invite barge-in.";
 
 const SCENARIOS = [
   {
     id: "IR",
     label: "信息检索",
     sublabel: "IR",
-    temporal:
-      "你能帮我查一下[0.30S]今年诺贝尔[0.20S]物理学奖[0.10S]是谁获得的吗",
+    temporal: "你能帮我查一下[0.30S]今年诺贝尔[0.20S]物理学奖[0.10S]是谁获得的吗",
   },
   {
     id: "LR",
     label: "学习获取",
     sublabel: "LR",
-    temporal:
-      "我不太理解[2.10S]为什么[3.50S]量子纠缠[1.80S]不能用来[2.40S]传递信息",
+    temporal: "我不太理解[2.10S]为什么[3.50S]量子纠缠[1.80S]不能用来[2.40S]传递信息",
   },
   {
     id: "PS",
     label: "问题求解",
     sublabel: "PS",
-    temporal:
-      "帮我看看[0.80S]这段代码[1.50S]为什么[3.20S]一直报错[0.10S]TypeError",
+    temporal: "帮我看看[0.80S]这段代码[1.50S]为什么[3.20S]一直报错[0.10S]TypeError",
   },
   {
     id: "CR",
     label: "内容创作",
     sublabel: "CR",
-    temporal:
-      "帮我写[0.50S]一段[1.80S]关于[4.20S]可持续发展的[0.30S]演讲开场白",
+    temporal: "帮我写[0.50S]一段[1.80S]关于[4.20S]可持续发展的[0.30S]演讲开场白",
   },
   {
     id: "ES",
     label: "情感支持",
     sublabel: "ES",
-    temporal:
-      "最近[2.80S]工作压力[4.10S]真的[1.50S]有点大[6.00S]不知道该怎么办",
+    temporal: "最近[2.80S]工作压力[4.10S]真的[1.50S]有点大[6.00S]不知道该怎么办",
   },
   {
     id: "LS",
     label: "休闲娱乐",
     sublabel: "LS",
+    temporal: "你觉得[0.30S]如果猫[0.20S]能说话[0.10S]它们第一句话会说什么",
+  },
+  // ─── Education scenarios ───────────────────────────────────────────────────
+  {
+    id: "CPD",
+    label: "复制检测",
+    sublabel: "Edu·1",
+    isEdu: true,
+    // Copy-paste signature: natural typing with gaps → long silence [11.88S] → pasted block with ZERO inter-word gaps
     temporal:
-      "你觉得[0.30S]如果猫[0.20S]能说话[0.10S]它们第一句话会说什么",
+      "[2.64S]我觉得[0.48S]，[2.16S]这可能[0.48S]是[0.48S]一个[1.80S]答案[0.60S]？[11.88S]熵增原理是指在封闭系统中总熵只增不减热力学第二定律",
+    promptA: EDU_COPY_PASTE_PROMPT,
+  },
+  {
+    id: "SOC",
+    label: "苏格拉底",
+    sublabel: "Edu·2",
+    isEdu: true,
+    temporal: "老师我不太懂[2.50S]这道题应该[3.80S]怎么解",
+    promptA: EDU_SOCRATIC_PROMPT,
   },
 ];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── System Prompt Builders ───────────────────────────────────────────────────
 
-function buildDefaultSystemPrompt(dtMs) {
+function buildPromptA(dtMs) {
   const sec = (Number(dtMs) / 1000).toFixed(2);
   return [
-    "You are a conversational model that uses Time tokens to express pauses.",
+    "You are a conversational model that uses time tokens to express deliberate pauses.",
     "Time tokens look like [0.53S] and represent a pause in seconds.",
-    `Prefer pauses in multiples of ${sec}S when possible.`,
-    "尽可能理解用户输入中的 time token，以感知用户的节奏与情绪状态。",
-    "Keep temporal tokens inside the response text; do not explain them.",
+    `Prefer pauses in multiples of ${sec}S.`,
+    "Carefully read any time tokens in the user's input to sense their typing rhythm and emotional state.",
+    "Include time tokens in your own response to express deliberate pauses and emphasis.",
+    "Keep tokens inside the text; do not explain them.",
     "Reply in a natural, compact tone.",
   ].join(" ");
 }
+
+function buildPromptB() {
+  return [
+    "You are a conversational model. The user's input may contain time tokens like [0.53S] representing pauses between words.",
+    "Carefully read these tokens to understand the user's typing rhythm, hesitation, and emotional state.",
+    "Use this temporal awareness to inform your empathy and response style.",
+    "Do NOT include any time tokens in your output — respond in plain natural text only.",
+    "Reply in a natural, compact tone.",
+  ].join(" ");
+}
+
+function buildPromptC() {
+  return "You are a conversational model. Reply in a natural, compact tone.";
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatGap(ms, dtMs, quantize) {
   const gapMs = Math.max(ms, 0);
@@ -105,8 +156,7 @@ function segmentsToString(segments) {
 function appendSegments(segments, text, gapMs, dtMs, quantize) {
   if (!text) return segments;
   let next = segments;
-  if (next.length && next[next.length - 1].type === "token")
-    next = next.slice(0, -1);
+  if (next.length && next[next.length - 1].type === "token") next = next.slice(0, -1);
   if (gapMs >= dtMs)
     next = [...next, { type: "token", value: formatGap(gapMs, dtMs, quantize) }];
   return [...next, { type: "text", value: text }];
@@ -136,10 +186,7 @@ function parseTemporalString(str) {
   while ((match = re.exec(str)) !== null) {
     if (match.index > lastIndex)
       segs.push({ type: "text", value: str.slice(lastIndex, match.index) });
-    segs.push({
-      type: "token",
-      value: `[${parseFloat(match[1]).toFixed(2)}S]`,
-    });
+    segs.push({ type: "token", value: `[${parseFloat(match[1]).toFixed(2)}S]` });
     lastIndex = match.index + match[0].length;
   }
   if (lastIndex < str.length)
@@ -148,10 +195,7 @@ function parseTemporalString(str) {
 }
 
 function rawFromSegments(segs) {
-  return segs
-    .filter((s) => s.type === "text")
-    .map((s) => s.value)
-    .join("");
+  return segs.filter((s) => s.type === "text").map((s) => s.value).join("");
 }
 
 function durationToHue(seconds) {
@@ -168,6 +212,152 @@ function sleep(ms, timersRef) {
     const id = setTimeout(resolve, ms);
     timersRef.current.push(id);
   });
+}
+
+// ─── useTemporalInput ─────────────────────────────────────────────────────────
+
+function useTemporalInput(dtMs, quantize) {
+  const [rawInput, setRawInput] = useState("");
+  const [temporalInput, setTemporalInput] = useState("");
+  const [segmentVersion, setSegmentVersion] = useState(0);
+  const segmentsRef = useRef([]);
+  const lastEditAtRef = useRef(null);
+  const lastRawRef = useRef("");
+  const composingRef = useRef(false);
+  const compositionBaseRef = useRef("");
+  const lastCompositionValueRef = useRef(null);
+
+  const bumpSegments = useCallback(() => setSegmentVersion((v) => v + 1), []);
+
+  const resetTemporal = useCallback(() => {
+    const raw = lastRawRef.current;
+    const segs = raw ? [{ type: "text", value: raw }] : [];
+    segmentsRef.current = segs;
+    setTemporalInput(segmentsToString(segs));
+    lastEditAtRef.current = null;
+    bumpSegments();
+  }, [bumpSegments]);
+
+  const clearInput = useCallback(() => {
+    segmentsRef.current = [];
+    setRawInput("");
+    setTemporalInput("");
+    lastEditAtRef.current = null;
+    lastRawRef.current = "";
+    bumpSegments();
+  }, [bumpSegments]);
+
+  const applyInputChange = useCallback(
+    (value, prevRawOverride) => {
+      const now = performance.now();
+      const prevRaw = prevRawOverride ?? lastRawRef.current;
+      const gap = lastEditAtRef.current === null ? 0 : now - lastEditAtRef.current;
+      let segs = segmentsRef.current;
+      if (value.startsWith(prevRaw) && value.length >= prevRaw.length) {
+        segs = appendSegments(segs, value.slice(prevRaw.length), gap, dtMs, quantize);
+      } else {
+        const prefixLen = commonPrefixLength(prevRaw, value);
+        segs = trimSegmentsToRawLength(segs, prefixLen);
+        segs = appendSegments(segs, value.slice(prefixLen), gap, dtMs, quantize);
+      }
+      segmentsRef.current = segs;
+      setTemporalInput(segmentsToString(segs));
+      setRawInput(value);
+      lastRawRef.current = value;
+      lastEditAtRef.current = now;
+      bumpSegments();
+    },
+    [dtMs, quantize, bumpSegments]
+  );
+
+  const handleChange = useCallback(
+    (e) => {
+      const value = e.target.value;
+      if (
+        lastCompositionValueRef.current !== null &&
+        value === lastCompositionValueRef.current
+      ) {
+        lastCompositionValueRef.current = null;
+        return;
+      }
+      if (composingRef.current) {
+        setRawInput(value);
+        lastRawRef.current = value;
+        return;
+      }
+      applyInputChange(value);
+    },
+    [applyInputChange]
+  );
+
+  const handleCompositionStart = useCallback(() => {
+    composingRef.current = true;
+    compositionBaseRef.current = lastRawRef.current;
+  }, []);
+
+  const handleCompositionEnd = useCallback(
+    (e) => {
+      composingRef.current = false;
+      applyInputChange(e.target.value, compositionBaseRef.current);
+      lastCompositionValueRef.current = e.target.value;
+      compositionBaseRef.current = "";
+    },
+    [applyInputChange]
+  );
+
+  const handleTokenDurationChange = useCallback(
+    (index, newDur) => {
+      const segs = segmentsRef.current.map((seg, i) => {
+        if (i !== index || seg.type !== "token") return seg;
+        return { type: "token", value: `[${newDur.toFixed(2)}S]` };
+      });
+      segmentsRef.current = segs;
+      setTemporalInput(segmentsToString(segs));
+      bumpSegments();
+    },
+    [bumpSegments]
+  );
+
+  const loadTemporal = useCallback(
+    (temporalStr) => {
+      const segs = parseTemporalString(temporalStr);
+      const raw = rawFromSegments(segs);
+      segmentsRef.current = segs;
+      setRawInput(raw);
+      setTemporalInput(segmentsToString(segs));
+      lastRawRef.current = raw;
+      lastEditAtRef.current = null;
+      bumpSegments();
+    },
+    [bumpSegments]
+  );
+
+  const loadFromSegments = useCallback(
+    (segments, raw) => {
+      segmentsRef.current = segments;
+      setRawInput(raw || "");
+      setTemporalInput(segmentsToString(segments));
+      lastRawRef.current = raw || "";
+      lastEditAtRef.current = null;
+      bumpSegments();
+    },
+    [bumpSegments]
+  );
+
+  return {
+    rawInput,
+    temporalInput,
+    segmentsRef,
+    segmentVersion,
+    handleChange,
+    handleCompositionStart,
+    handleCompositionEnd,
+    handleTokenDurationChange,
+    resetTemporal,
+    clearInput,
+    loadTemporal,
+    loadFromSegments,
+  };
 }
 
 // ─── TimeBar ─────────────────────────────────────────────────────────────────
@@ -201,11 +391,7 @@ function TimeBar({ duration, index, onDurationChange }) {
   return (
     <span
       className="timebar"
-      style={{
-        width,
-        background: barColor,
-        borderRight: `3px solid ${borderColor}`,
-      }}
+      style={{ width, background: barColor, borderRight: `3px solid ${borderColor}` }}
       title={`${duration.toFixed(2)}s — drag right edge to resize`}
     >
       <span className="timebar-label" style={{ color: labelColor }}>
@@ -227,12 +413,7 @@ function TokenRow({ segments, onDurationChange }) {
           const m = seg.value.match(/\[(\d+(?:\.\d+)?)S\]/i);
           const dur = m ? parseFloat(m[1]) : 0;
           return (
-            <TimeBar
-              key={i}
-              duration={dur}
-              index={i}
-              onDurationChange={onDurationChange}
-            />
+            <TimeBar key={i} duration={dur} index={i} onDurationChange={onDurationChange} />
           );
         }
         if (seg.type === "pause") {
@@ -255,45 +436,79 @@ function TokenRow({ segments, onDurationChange }) {
   );
 }
 
-// ─── AI Cursor ────────────────────────────────────────────────────────────────
+// ─── AICursor ─────────────────────────────────────────────────────────────────
 
 function AICursor({ state }) {
   if (state === "idle") return null;
   return (
     <span
-      className={
-        state === "pause" ? "ai-cursor ai-cursor--breathe" : "ai-cursor ai-cursor--blink"
-      }
+      className={state === "pause" ? "ai-cursor ai-cursor--breathe" : "ai-cursor ai-cursor--blink"}
       aria-hidden="true"
     />
   );
 }
 
-// ─── System Prompt Editor ─────────────────────────────────────────────────────
+// ─── Temporal Presence Indicator ──────────────────────────────────────────────
+// Design reference: "Social Presence" theory (Short, Williams & Christie, 1976)
+// and "Workspace Awareness" (Gutwin & Greenberg, 2002) adapted for AI temporal states.
+// Visually inspired by collaborative tool presence cursors (Notion, Figma, Feishu).
 
-function SystemPromptEditor({ value, onChange }) {
+function TemporalPresenceIndicator({ cursorState, pauseDuration }) {
+  if (cursorState === "idle") return null;
+
+  if (cursorState === "typing") {
+    return (
+      <div className="tpi tpi--typing" aria-live="polite" aria-label="AI is responding">
+        <span className="tpi-dots">
+          <span className="tpi-dot" />
+          <span className="tpi-dot" />
+          <span className="tpi-dot" />
+        </span>
+        <span className="tpi-label">AI · responding</span>
+      </div>
+    );
+  }
+
+  // pause state
+  const hue = pauseDuration ? durationToHue(pauseDuration) : 200;
+  const color = `hsl(${hue}, 80%, 62%)`;
+  const glow = `hsl(${hue}, 70%, 30%)`;
+  return (
+    <div
+      className="tpi tpi--pause"
+      style={{ borderColor: `hsl(${hue}, 60%, 40%)`, boxShadow: `0 0 14px ${glow}` }}
+      aria-live="polite"
+      aria-label="AI deliberate pause"
+    >
+      <span
+        className="tpi-beacon"
+        style={{ background: color, boxShadow: `0 0 8px ${color}` }}
+      />
+      <span className="tpi-label" style={{ color }}>
+        AI · deliberate pause
+        {pauseDuration ? ` · ${pauseDuration.toFixed(1)}s` : ""}
+      </span>
+    </div>
+  );
+}
+
+// ─── ModePromptEditor ─────────────────────────────────────────────────────────
+
+function ModePromptEditor({ prompt, onChange }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="sysprompt-wrap">
-      <button
-        className="sysprompt-toggle"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-      >
+    <div className="mode-prompt-wrap">
+      <button className="mode-prompt-toggle" onClick={() => setOpen((o) => !o)}>
         <span className="sysprompt-caret">{open ? "▲" : "▼"}</span>
-        <span>System Prompt</span>
-        {!open && (
-          <span className="sysprompt-preview">
-            {value.slice(0, 90)}…
-          </span>
-        )}
+        <span>Prompt</span>
+        {!open && <span className="sysprompt-preview">{prompt.slice(0, 55)}…</span>}
       </button>
       {open && (
         <textarea
           className="sysprompt-textarea"
-          value={value}
+          value={prompt}
           onChange={(e) => onChange(e.target.value)}
-          rows={5}
+          rows={4}
           spellCheck={false}
         />
       )}
@@ -301,15 +516,41 @@ function SystemPromptEditor({ value, onChange }) {
   );
 }
 
-// ─── Conversation Panel ───────────────────────────────────────────────────────
+// ─── ConversationPanel ────────────────────────────────────────────────────────
 
-function ConversationPanel({ renderedText, plainText, cursorState, status }) {
+function ConversationPanel({
+  history,
+  cursorState,
+  renderingId,
+  currentPauseDuration,
+  status,
+  onReplay,
+  onSend,
+  dtMs,
+  quantize,
+}) {
   const endRef = useRef(null);
+  const convInput = useTemporalInput(dtMs, quantize);
+  void convInput.segmentVersion;
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [renderedText, plainText]);
+  }, [history, cursorState]);
 
-  const isEmpty = !plainText && !renderedText && cursorState === "idle";
+  const isEmpty = history.length === 0 && cursorState === "idle";
+
+  const handleSend = () => {
+    if (!convInput.rawInput.trim()) return;
+    onSend(convInput.rawInput, convInput.temporalInput);
+    convInput.clearInput();
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
 
   return (
     <div className="conv-panel">
@@ -317,48 +558,117 @@ function ConversationPanel({ renderedText, plainText, cursorState, status }) {
         <span className="panel-badge badge-blue">Conversation Panel</span>
         <span className="conv-status-pill">{status}</span>
       </div>
+
+      {/* Temporal Presence Indicator — floats below header */}
+      <div className="tpi-slot">
+        <TemporalPresenceIndicator
+          cursorState={cursorState}
+          pauseDuration={currentPauseDuration}
+        />
+      </div>
+
+      {/* Scrollable message body */}
       <div className="conv-body">
         {isEmpty && (
           <div className="conv-empty">
             <div className="conv-empty-icon">⏱</div>
-            <div>Response will appear here with temporal pauses rendered as real delays.</div>
-            <div className="conv-empty-sub">Use <strong>Compare Prompts</strong> to see both models side-by-side.</div>
-          </div>
-        )}
-
-        {plainText && (
-          <div className="bubble-row bubble-row--left">
-            <div className="bubble bubble--plain">
-              <div className="bubble-label">Standard Model (no time tokens)</div>
-              <div className="bubble-text">{plainText}</div>
+            <div>Type below or generate from Debug Panel (Mode A).</div>
+            <div className="conv-empty-sub">
+              Time-encoded turns · temporal rendering · barge-in replay
             </div>
           </div>
         )}
 
-        {(renderedText || cursorState !== "idle") && (
-          <div className="bubble-row bubble-row--right">
-            <div className="bubble bubble--temporal">
-              <div className="bubble-label">
-                Time-Aware Model
-                {cursorState === "pause" && (
-                  <span className="pause-indicator"> · deliberate pause</span>
+        {history.map((turn) => (
+          <div key={turn.id} className="conv-turn">
+            {/* User bubble */}
+            <div className="bubble-row bubble-row--right">
+              <div className="bubble bubble--user">
+                <div className="bubble-label">
+                  You
+                  <span className="bubble-time">
+                    {new Date(turn.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+                <div className="bubble-text">{turn.userRaw}</div>
+                {turn.userTemporal !== turn.userRaw && (
+                  <div className="bubble-temporal-hint">{turn.userTemporal}</div>
                 )}
               </div>
-              <div className="bubble-text">
-                {renderedText}
-                <AICursor state={cursorState} />
+            </div>
+
+            {/* AI bubble */}
+            <div className="bubble-row bubble-row--left">
+              <div className="bubble bubble--temporal">
+                <div className="bubble-label">
+                  Time-Aware AI
+                  {renderingId === turn.id && cursorState === "pause" && (
+                    <span className="pause-indicator"> · pausing</span>
+                  )}
+                </div>
+                <div className="bubble-text">
+                  {turn.responseRendered ||
+                    (renderingId === turn.id
+                      ? ""
+                      : turn.responseRaw?.replace(/\[\d+(?:\.\d+)?S\]/gi, " ") || "")}
+                  {renderingId === turn.id && <AICursor state={cursorState} />}
+                </div>
+                {/* Replay button — below each AI response, not centered */}
+                {turn.responseRaw && (
+                  <div className="bubble-actions">
+                    <button
+                      className="replay-btn"
+                      onClick={() => onReplay(turn)}
+                      disabled={renderingId !== null}
+                      title="Replay temporal rendering"
+                    >
+                      ⟳ replay
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        )}
+        ))}
 
         <div ref={endRef} />
+      </div>
+
+      {/* Conversation input area */}
+      <div className="conv-input-area">
+        {convInput.segmentsRef.current.length > 0 && (
+          <div className="conv-token-row">
+            <TokenRow
+              segments={convInput.segmentsRef.current}
+              onDurationChange={convInput.handleTokenDurationChange}
+            />
+          </div>
+        )}
+        <div className="conv-input-row">
+          <textarea
+            className="conv-textarea"
+            placeholder="Continue conversation… (Ctrl+Enter to send)"
+            value={convInput.rawInput}
+            onChange={convInput.handleChange}
+            onCompositionStart={convInput.handleCompositionStart}
+            onCompositionEnd={convInput.handleCompositionEnd}
+            onKeyDown={handleKeyDown}
+            rows={2}
+          />
+          <button
+            className="primary conv-send-btn"
+            onClick={handleSend}
+            disabled={!convInput.rawInput.trim() || cursorState !== "idle"}
+          >
+            Send
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Config Panel ─────────────────────────────────────────────────────────────
+// ─── ConfigDrawer ─────────────────────────────────────────────────────────────
 
 function ConfigDrawer({ configs, onLoad, onDelete }) {
   const [open, setOpen] = useState(false);
@@ -372,7 +682,13 @@ function ConfigDrawer({ configs, onLoad, onDelete }) {
         <div className="config-drawer">
           {configs.map((cfg, i) => (
             <div key={i} className="config-item">
-              <button className="config-item-btn" onClick={() => { onLoad(cfg); setOpen(false); }}>
+              <button
+                className="config-item-btn"
+                onClick={() => {
+                  onLoad(cfg);
+                  setOpen(false);
+                }}
+              >
                 <span className="config-item-time">
                   {new Date(cfg.timestamp).toLocaleString()}
                 </span>
@@ -380,7 +696,9 @@ function ConfigDrawer({ configs, onLoad, onDelete }) {
                   {cfg.rawInput?.slice(0, 48) || "(empty input)"}
                 </span>
               </button>
-              <button className="config-item-del" onClick={() => onDelete(i)}>✕</button>
+              <button className="config-item-del" onClick={() => onDelete(i)}>
+                ✕
+              </button>
             </div>
           ))}
         </div>
@@ -392,45 +710,39 @@ function ConfigDrawer({ configs, onLoad, onDelete }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Page() {
-  // Input state
-  const [rawInput, setRawInput] = useState("");
-  const [temporalInput, setTemporalInput] = useState("");
   const [dtMs, setDtMs] = useState(DEFAULT_DT);
   const [quantize, setQuantize] = useState(true);
 
-  // System prompt
-  const [systemPrompt, setSystemPrompt] = useState(() =>
-    buildDefaultSystemPrompt(DEFAULT_DT)
-  );
+  // Debug panel input
+  const debugInput = useTemporalInput(dtMs, quantize);
+  void debugInput.segmentVersion;
 
-  // Response state
-  const [responseRaw, setResponseRaw] = useState("");
-  const [responsePlainRaw, setResponsePlainRaw] = useState("");
-  const [responseRendered, setResponseRendered] = useState("");
+  // Three independent prompts
+  const [promptA, setPromptA] = useState(() => buildPromptA(DEFAULT_DT));
+  const [promptB, setPromptB] = useState(() => buildPromptB());
+  const [promptC, setPromptC] = useState(() => buildPromptC());
 
-  // UI state
+  // Three independent raw outputs (debug panel)
+  const [outputA, setOutputA] = useState("");
+  const [outputB, setOutputB] = useState("");
+  const [outputC, setOutputC] = useState("");
+
+  // Conversation history
+  const [convHistory, setConvHistory] = useState([]);
+
+  // Rendering state
+  const [cursorState, setCursorState] = useState("idle");
+  const [renderingId, setRenderingId] = useState(null);
+  const [currentPauseDuration, setCurrentPauseDuration] = useState(null);
   const [status, setStatus] = useState("Idle");
   const [error, setError] = useState("");
-  const [cursorState, setCursorState] = useState("idle"); // "idle"|"typing"|"pause"
 
-  // Config
+  // Saved configs
   const [configs, setConfigs] = useState([]);
 
-  // Refs for timing/composition
-  const lastEditAtRef = useRef(null);
-  const lastRawRef = useRef("");
-  const segmentsRef = useRef([]);
-  const cancelRef = useRef(null);
   const timersRef = useRef([]);
-  const composingRef = useRef(false);
-  const compositionBaseRef = useRef("");
-  const lastCompositionValueRef = useRef(null);
+  const cancelRef = useRef(null);
 
-  // Force re-render of token row when segments change
-  const [segmentVersion, setSegmentVersion] = useState(0);
-  const bumpSegments = () => setSegmentVersion((v) => v + 1);
-
-  // Load saved configs
   useEffect(() => {
     try {
       const saved = localStorage.getItem("timetoken-configs");
@@ -438,9 +750,10 @@ export default function Page() {
     } catch {}
   }, []);
 
-  // Cleanup timers
   useEffect(() => {
-    return () => { timersRef.current.forEach(clearTimeout); };
+    return () => {
+      timersRef.current.forEach(clearTimeout);
+    };
   }, []);
 
   const clearTimers = () => {
@@ -448,122 +761,33 @@ export default function Page() {
     timersRef.current = [];
   };
 
-  // ─── Input Handling ──────────────────────────────────────────────────────
+  const isIdle = status === "Idle";
 
-  const resetTemporal = () => {
-    const segs = rawInput ? [{ type: "text", value: rawInput }] : [];
-    segmentsRef.current = segs;
-    setTemporalInput(segmentsToString(segs));
-    lastEditAtRef.current = null;
-    lastRawRef.current = rawInput;
-    bumpSegments();
-  };
+  // ─── Playback ───────────────────────────────────────────────────────────────
 
-  const applyInputChange = (value, prevRawOverride) => {
-    const now = performance.now();
-    const prevRaw = prevRawOverride ?? lastRawRef.current;
-    const gap =
-      lastEditAtRef.current === null ? 0 : now - lastEditAtRef.current;
-    let segs = segmentsRef.current;
-    if (value.startsWith(prevRaw) && value.length >= prevRaw.length) {
-      segs = appendSegments(segs, value.slice(prevRaw.length), gap, dtMs, quantize);
-    } else {
-      const prefixLen = commonPrefixLength(prevRaw, value);
-      segs = trimSegmentsToRawLength(segs, prefixLen);
-      segs = appendSegments(segs, value.slice(prefixLen), gap, dtMs, quantize);
-    }
-    segmentsRef.current = segs;
-    setTemporalInput(segmentsToString(segs));
-    setRawInput(value);
-    lastRawRef.current = value;
-    lastEditAtRef.current = now;
-    bumpSegments();
-  };
-
-  const handleChange = (e) => {
-    const value = e.target.value;
-    if (
-      lastCompositionValueRef.current !== null &&
-      value === lastCompositionValueRef.current
-    ) {
-      lastCompositionValueRef.current = null;
-      return;
-    }
-    if (composingRef.current) {
-      setRawInput(value);
-      lastRawRef.current = value;
-      return;
-    }
-    applyInputChange(value);
-  };
-
-  const handleCompositionStart = () => {
-    composingRef.current = true;
-    compositionBaseRef.current = lastRawRef.current;
-  };
-
-  const handleCompositionEnd = (e) => {
-    composingRef.current = false;
-    applyInputChange(e.target.value, compositionBaseRef.current);
-    lastCompositionValueRef.current = e.target.value;
-    compositionBaseRef.current = "";
-  };
-
-  // ─── Token Duration Editing ───────────────────────────────────────────────
-
-  const handleInputTokenDurationChange = (index, newDur) => {
-    const segs = segmentsRef.current.map((seg, i) => {
-      if (i !== index || seg.type !== "token") return seg;
-      return { type: "token", value: `[${newDur.toFixed(2)}S]` };
-    });
-    segmentsRef.current = segs;
-    setTemporalInput(segmentsToString(segs));
-    bumpSegments();
-  };
-
-  const handleOutputTokenDurationChange = (index, newDur) => {
-    const segs = splitTemporal(responseRaw).map((seg, i) => {
-      if (i !== index || seg.type !== "pause") return seg;
-      return { ...seg, value: newDur };
-    });
-    const newRaw = segs
-      .map((s) => (s.type === "pause" ? `[${s.value.toFixed(2)}S]` : s.value))
-      .join("");
-    setResponseRaw(newRaw);
-  };
-
-  // ─── Scenario Loading ─────────────────────────────────────────────────────
-
-  const loadScenario = (scenario) => {
-    const segs = parseTemporalString(scenario.temporal);
-    const raw = rawFromSegments(segs);
-    segmentsRef.current = segs;
-    setRawInput(raw);
-    setTemporalInput(segmentsToString(segs));
-    lastRawRef.current = raw;
-    lastEditAtRef.current = null;
-    setResponseRaw("");
-    setResponsePlainRaw("");
-    setResponseRendered("");
-    setCursorState("idle");
-    bumpSegments();
-  };
-
-  // ─── Response Playback ────────────────────────────────────────────────────
-
-  const playResponse = async (text) => {
+  const playResponse = async (text, turnId) => {
     if (cancelRef.current) cancelRef.current();
     clearTimers();
-    setResponseRendered("");
     setStatus("Rendering");
     setCursorState("typing");
+    setRenderingId(turnId);
+    setCurrentPauseDuration(null);
+
+    // Reset rendered text for this turn
+    setConvHistory((h) =>
+      h.map((t) => (t.id === turnId ? { ...t, responseRendered: "" } : t))
+    );
 
     const segs = splitTemporal(text);
     let cancelled = false;
+    let accumulated = "";
+
     cancelRef.current = () => {
       cancelled = true;
       setCursorState("idle");
       setStatus("Idle");
+      setRenderingId(null);
+      setCurrentPauseDuration(null);
     };
 
     for (const seg of segs) {
@@ -571,23 +795,35 @@ export default function Page() {
       if (seg.type === "pause") {
         const delay = Math.min(seg.value * 1000, 6000);
         if (delay > 50) {
+          setCurrentPauseDuration(seg.value);
           setCursorState("pause");
           await sleep(delay, timersRef);
           if (cancelled) return;
+          setCurrentPauseDuration(null);
           setCursorState("typing");
         }
       } else {
-        setResponseRendered((prev) => prev + seg.value);
+        accumulated += seg.value;
+        const snap = accumulated;
+        setConvHistory((h) =>
+          h.map((t) => (t.id === turnId ? { ...t, responseRendered: snap } : t))
+        );
       }
     }
+
+    setConvHistory((h) =>
+      h.map((t) => (t.id === turnId ? { ...t, rendered: true } : t))
+    );
     setCursorState("idle");
     setStatus("Idle");
+    setRenderingId(null);
+    setCurrentPauseDuration(null);
   };
 
-  // ─── API ─────────────────────────────────────────────────────────────────
+  // ─── API ────────────────────────────────────────────────────────────────────
 
-  const callApi = async (message, mode, customPrompt) => {
-    const payload = { message, dtMs, mode, systemPrompt: customPrompt || null };
+  const callApi = async (message, customPrompt) => {
+    const payload = { message, dtMs, systemPrompt: customPrompt };
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -598,21 +834,102 @@ export default function Page() {
     return data.text || "";
   };
 
-  const handleGenerate = async () => {
+  const callApiMultiTurn = async (messages, systemPrompt) => {
+    const payload = { messages, dtMs, systemPrompt };
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || "Request failed");
+    return data.text || "";
+  };
+
+  // ─── Generate handlers ───────────────────────────────────────────────────────
+
+  const addTurnAndPlay = async (rawMsg, temporalMsg, responseText) => {
+    const turnId = Date.now();
+    const newTurn = {
+      id: turnId,
+      userRaw: rawMsg,
+      userTemporal: temporalMsg || rawMsg,
+      responseRaw: responseText,
+      responseRendered: "",
+      rendered: false,
+      timestamp: new Date().toISOString(),
+    };
+    setConvHistory((h) => [...h, newTurn]);
+    await playResponse(responseText, turnId);
+  };
+
+  const handleGenerateA = async () => {
+    if (!debugInput.rawInput) return;
+    setError("");
+    setStatus("Calling LLM (A)…");
+    setOutputA("");
+    clearTimers();
+    try {
+      const msg = debugInput.temporalInput || debugInput.rawInput;
+      const text = await callApi(msg, promptA);
+      setOutputA(text);
+      await addTurnAndPlay(debugInput.rawInput, debugInput.temporalInput, text);
+    } catch (err) {
+      setError(err.message || "Unexpected error");
+      setStatus("Idle");
+      setCursorState("idle");
+    }
+  };
+
+  const handleGenerateB = async () => {
+    if (!debugInput.rawInput) return;
+    setError("");
+    setStatus("Calling LLM (B)…");
+    setOutputB("");
+    clearTimers();
+    try {
+      const msg = debugInput.temporalInput || debugInput.rawInput;
+      const text = await callApi(msg, promptB);
+      setOutputB(text);
+      setStatus("Idle");
+    } catch (err) {
+      setError(err.message || "Unexpected error");
+      setStatus("Idle");
+    }
+  };
+
+  const handleGenerateC = async () => {
+    if (!debugInput.rawInput) return;
+    setError("");
+    setStatus("Calling LLM (C)…");
+    setOutputC("");
+    clearTimers();
+    try {
+      const text = await callApi(debugInput.rawInput, promptC);
+      setOutputC(text);
+      setStatus("Idle");
+    } catch (err) {
+      setError(err.message || "Unexpected error");
+      setStatus("Idle");
+    }
+  };
+
+  // ─── Conversation continue ───────────────────────────────────────────────────
+
+  const handleConvSend = async (rawMsg, temporalMsg) => {
     setError("");
     setStatus("Calling LLM…");
-    setResponseRaw("");
-    setResponsePlainRaw("");
-    setResponseRendered("");
     clearTimers();
     try {
-      const text = await callApi(
-        temporalInput || rawInput,
-        "temporal",
-        systemPrompt
-      );
-      setResponseRaw(text);
-      await playResponse(text);
+      const messages = [
+        ...convHistory.flatMap((t) => [
+          { role: "user", content: t.userTemporal },
+          { role: "assistant", content: t.responseRaw },
+        ]),
+        { role: "user", content: temporalMsg || rawMsg },
+      ];
+      const text = await callApiMultiTurn(messages, promptA);
+      await addTurnAndPlay(rawMsg, temporalMsg, text);
     } catch (err) {
       setError(err.message || "Unexpected error");
       setStatus("Idle");
@@ -620,45 +937,51 @@ export default function Page() {
     }
   };
 
-  const handleCompare = async () => {
-    setError("");
-    setStatus("Calling LLM (compare)…");
-    setResponseRaw("");
-    setResponsePlainRaw("");
-    setResponseRendered("");
-    clearTimers();
-    try {
-      const [plainText, temporalText] = await Promise.all([
-        callApi(rawInput, "plain", null),
-        callApi(temporalInput || rawInput, "temporal", systemPrompt),
-      ]);
-      setResponsePlainRaw(plainText);
-      setResponseRaw(temporalText);
-      await playResponse(temporalText);
-    } catch (err) {
-      setError(err.message || "Unexpected error");
-      setStatus("Idle");
-      setCursorState("idle");
-    }
+  // ─── Replay ─────────────────────────────────────────────────────────────────
+
+  const handleReplay = async (turn) => {
+    await playResponse(turn.responseRaw, turn.id);
   };
 
-  const handleStop = () => {
-    if (cancelRef.current) cancelRef.current();
-    clearTimers();
+  // ─── Output token editing (mode A only) ─────────────────────────────────────
+
+  const handleOutputATokenChange = (index, newDur) => {
+    const segs = splitTemporal(outputA).map((seg, i) => {
+      if (i !== index || seg.type !== "pause") return seg;
+      return { ...seg, value: newDur };
+    });
+    setOutputA(
+      segs
+        .map((s) => (s.type === "pause" ? `[${s.value.toFixed(2)}S]` : s.value))
+        .join("")
+    );
+  };
+
+  // ─── Scenario loading ────────────────────────────────────────────────────────
+
+  const loadScenario = (scenario) => {
+    debugInput.loadTemporal(scenario.temporal);
+    setOutputA("");
+    setOutputB("");
+    setOutputC("");
     setCursorState("idle");
-    setStatus("Idle");
+    if (scenario.promptA) setPromptA(scenario.promptA);
   };
 
-  // ─── Configuration ────────────────────────────────────────────────────────
+  // ─── Config ─────────────────────────────────────────────────────────────────
 
-  const saveConfig = () => {
+  const saveConfig = (modeLabel, savedOutput) => {
     const cfg = {
       dtMs,
       quantize,
-      systemPrompt,
-      rawInput,
-      temporalInput,
-      segments: segmentsRef.current,
+      promptA,
+      promptB,
+      promptC,
+      rawInput: debugInput.rawInput,
+      temporalInput: debugInput.temporalInput,
+      segments: debugInput.segmentsRef.current,
+      savedMode: modeLabel,
+      savedOutput,
       timestamp: new Date().toISOString(),
     };
     const next = [...configs, cfg];
@@ -671,13 +994,11 @@ export default function Page() {
   const loadConfig = (cfg) => {
     setDtMs(cfg.dtMs ?? DEFAULT_DT);
     setQuantize(cfg.quantize ?? true);
-    if (cfg.systemPrompt) setSystemPrompt(cfg.systemPrompt);
+    if (cfg.promptA) setPromptA(cfg.promptA);
+    if (cfg.promptB) setPromptB(cfg.promptB);
+    if (cfg.promptC) setPromptC(cfg.promptC);
     if (cfg.segments) {
-      segmentsRef.current = cfg.segments;
-      setRawInput(cfg.rawInput || "");
-      setTemporalInput(segmentsToString(cfg.segments));
-      lastRawRef.current = cfg.rawInput || "";
-      bumpSegments();
+      debugInput.loadFromSegments(cfg.segments, cfg.rawInput || "");
     }
   };
 
@@ -689,69 +1010,63 @@ export default function Page() {
     } catch {}
   };
 
-  const handleReset = () => {
+  const handleStop = () => {
     if (cancelRef.current) cancelRef.current();
     clearTimers();
-    setRawInput("");
-    setTemporalInput("");
-    setResponseRaw("");
-    setResponsePlainRaw("");
-    setResponseRendered("");
-    setError("");
-    setStatus("Idle");
     setCursorState("idle");
-    segmentsRef.current = [];
-    lastRawRef.current = "";
-    lastEditAtRef.current = null;
-    setSystemPrompt(buildDefaultSystemPrompt(dtMs));
-    bumpSegments();
+    setStatus("Idle");
+    setRenderingId(null);
+    setCurrentPauseDuration(null);
   };
 
-  // ─── Derived ─────────────────────────────────────────────────────────────
+  const handleReset = () => {
+    handleStop();
+    debugInput.clearInput();
+    setOutputA("");
+    setOutputB("");
+    setOutputC("");
+    setConvHistory([]);
+    setError("");
+    setPromptA(buildPromptA(dtMs));
+    setPromptB(buildPromptB());
+    setPromptC(buildPromptC());
+  };
+
+  // ─── Derived ─────────────────────────────────────────────────────────────────
 
   const tokenPreview = useMemo(() => formatGap(dtMs, dtMs, true), [dtMs]);
-  const inputSegments = segmentsRef.current; // re-renders via segmentVersion
-  const outputSegments = useMemo(() => splitTemporal(responseRaw), [responseRaw]);
-  const isIdle = status === "Idle";
+  const outputASegs = useMemo(() => splitTemporal(outputA), [outputA]);
 
-  // Suppress lint warning — segmentVersion is read to trigger re-renders
-  void segmentVersion;
-
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <main className="page">
-      {/* Header */}
       <header className="hero">
         <h1>
           TimeToken<span className="hero-accent">Probe</span>
         </h1>
         <p>
-          Explore temporal interaction in Human–LLM conversations. Typing rhythm
-          becomes tokens; tokens become pauses.
+          Explore temporal interaction in Human–LLM conversations. Typing rhythm becomes
+          tokens; tokens become pauses.
         </p>
       </header>
 
-      {/* System Prompt Editor */}
-      <SystemPromptEditor value={systemPrompt} onChange={setSystemPrompt} />
-
-      {/* Dual-panel body */}
       <div className="dual-panel">
-        {/* ──────────── DEBUG PANEL (left) ──────────── */}
+        {/* ──────────────── DEBUG PANEL ──────────────── */}
         <div className="debug-panel">
           <div className="panel-header">
             <span className="panel-badge badge-orange">Debug Panel</span>
-            <span className="panel-subtitle">Token-level view · editable</span>
+            <span className="panel-subtitle">Token-level · 3 independent modes</span>
           </div>
 
           {/* Scenario chips */}
           <div className="scenario-bar">
-            <span className="scenario-label">Preloaded scenarios:</span>
+            <span className="scenario-label">Scenarios:</span>
             <div className="scenario-chips">
               {SCENARIOS.map((s) => (
                 <button
                   key={s.id}
-                  className="chip"
+                  className={`chip${s.isEdu ? " chip--edu" : ""}`}
                   onClick={() => loadScenario(s)}
                   title={s.temporal}
                 >
@@ -762,27 +1077,27 @@ export default function Page() {
             </div>
           </div>
 
-          {/* ── Input section ── */}
+          {/* ── INPUT ── */}
           <section className="debug-section">
             <div className="debug-section-title">
               INPUT — Inter-word Time Bars
               <span className="section-hint">drag bar edges to adjust</span>
             </div>
 
-            {inputSegments.length > 0 && (
+            {debugInput.segmentsRef.current.length > 0 && (
               <TokenRow
-                segments={inputSegments}
-                onDurationChange={handleInputTokenDurationChange}
+                segments={debugInput.segmentsRef.current}
+                onDurationChange={debugInput.handleTokenDurationChange}
               />
             )}
 
             <textarea
               className="debug-textarea"
               placeholder="Type naturally — pauses between keystrokes become temporal tokens."
-              value={rawInput}
-              onChange={handleChange}
-              onCompositionStart={handleCompositionStart}
-              onCompositionEnd={handleCompositionEnd}
+              value={debugInput.rawInput}
+              onChange={debugInput.handleChange}
+              onCompositionStart={debugInput.handleCompositionStart}
+              onCompositionEnd={debugInput.handleCompositionEnd}
             />
 
             <div className="controls-row">
@@ -807,95 +1122,134 @@ export default function Page() {
                 />
                 Quantize
               </label>
-              <button className="chip chip--ghost" onClick={resetTemporal}>
+              <button className="chip chip--ghost" onClick={debugInput.resetTemporal}>
                 Reset Timing
               </button>
             </div>
 
             <div className="mono-preview">
-              {temporalInput || <span className="muted">…</span>}
+              {debugInput.temporalInput || <span className="muted">…</span>}
             </div>
           </section>
 
-          {/* ── Output standard section ── */}
-          <section className="debug-section">
+          {/* ── MODE A: Input+time → Output+time ── */}
+          <section className="debug-section mode-section mode-section--orange">
             <div className="debug-section-title">
-              OUTPUT — Standard Model
-              <span className="section-hint badge-plain">no time tokens</span>
+              <span className="mode-badge mode-badge--orange">A</span>
+              Input + time → Output + time
+              <span className="section-hint">model perceives &amp; expresses time</span>
             </div>
-            <div className="mono-preview mono-preview--plain">
-              {responsePlainRaw || <span className="muted">…</span>}
-            </div>
-          </section>
-
-          {/* ── Output temporal section ── */}
-          <section className="debug-section">
-            <div className="debug-section-title">
-              OUTPUT — Time-Aware Model
-              <span className="section-hint">drag bars to re-render</span>
-            </div>
-            {outputSegments.length > 0 && (
-              <TokenRow
-                segments={outputSegments}
-                onDurationChange={handleOutputTokenDurationChange}
-              />
+            <ModePromptEditor prompt={promptA} onChange={setPromptA} />
+            {outputASegs.length > 0 && (
+              <TokenRow segments={outputASegs} onDurationChange={handleOutputATokenChange} />
             )}
             <div className="mono-preview">
-              {responseRaw || <span className="muted">…</span>}
+              {outputA || <span className="muted">…</span>}
             </div>
-            {responseRaw && (
+            <div className="mode-actions">
               <button
-                className="chip chip--ghost"
-                onClick={() => playResponse(responseRaw)}
-                disabled={!isIdle}
+                className="primary"
+                onClick={handleGenerateA}
+                disabled={!debugInput.rawInput || !isIdle}
               >
-                Re-render with edited timings
+                Generate A
               </button>
-            )}
+              {outputA && (
+                <button
+                  className="chip chip--ghost"
+                  onClick={() => saveConfig("A", outputA)}
+                >
+                  ↓ Save
+                </button>
+              )}
+            </div>
+          </section>
+
+          {/* ── MODE B: Input+time → Output plain ── */}
+          <section className="debug-section mode-section mode-section--blue">
+            <div className="debug-section-title">
+              <span className="mode-badge mode-badge--blue">B</span>
+              Input + time → Output plain
+              <span className="section-hint">model perceives, does not express</span>
+            </div>
+            <ModePromptEditor prompt={promptB} onChange={setPromptB} />
+            <div className="mono-preview mono-preview--plain">
+              {outputB || <span className="muted">…</span>}
+            </div>
+            <div className="mode-actions">
+              <button
+                className="secondary"
+                onClick={handleGenerateB}
+                disabled={!debugInput.rawInput || !isIdle}
+              >
+                Generate B
+              </button>
+              {outputB && (
+                <button
+                  className="chip chip--ghost"
+                  onClick={() => saveConfig("B", outputB)}
+                >
+                  ↓ Save
+                </button>
+              )}
+            </div>
+          </section>
+
+          {/* ── MODE C: Input plain → Output plain (baseline) ── */}
+          <section className="debug-section mode-section mode-section--gray">
+            <div className="debug-section-title">
+              <span className="mode-badge mode-badge--gray">C</span>
+              Input plain → Output plain
+              <span className="section-hint">baseline · no time awareness</span>
+            </div>
+            <ModePromptEditor prompt={promptC} onChange={setPromptC} />
+            <div className="mono-preview mono-preview--plain">
+              {outputC || <span className="muted">…</span>}
+            </div>
+            <div className="mode-actions">
+              <button
+                className="secondary"
+                onClick={handleGenerateC}
+                disabled={!debugInput.rawInput || !isIdle}
+              >
+                Generate C
+              </button>
+              {outputC && (
+                <button
+                  className="chip chip--ghost"
+                  onClick={() => saveConfig("C", outputC)}
+                >
+                  ↓ Save
+                </button>
+              )}
+            </div>
           </section>
         </div>
 
-        {/* ──────────── CONVERSATION PANEL (right) ──────────── */}
+        {/* ──────────────── CONVERSATION PANEL ──────────────── */}
         <ConversationPanel
-          renderedText={responseRendered}
-          plainText={responsePlainRaw}
+          history={convHistory}
           cursorState={cursorState}
+          renderingId={renderingId}
+          currentPauseDuration={currentPauseDuration}
           status={status}
+          onReplay={handleReplay}
+          onSend={handleConvSend}
+          dtMs={dtMs}
+          quantize={quantize}
         />
       </div>
 
-      {/* Bottom toolbar */}
+      {/* Toolbar */}
       <footer className="toolbar">
         <div className="toolbar-left">
-          <button
-            className="primary"
-            onClick={handleGenerate}
-            disabled={!rawInput || !isIdle}
-          >
-            Call LLM
-          </button>
-          <button
-            className="secondary"
-            onClick={handleCompare}
-            disabled={!rawInput || !isIdle}
-          >
-            Compare Prompts
-          </button>
           <button className="secondary" onClick={handleStop} disabled={isIdle}>
             Stop
           </button>
           {error && <span className="error-msg">⚠ {error}</span>}
         </div>
-
         <div className="toolbar-right">
-          <button className="secondary" onClick={saveConfig}>
-            Save Config
-          </button>
-          <ConfigDrawer
-            configs={configs}
-            onLoad={loadConfig}
-            onDelete={deleteConfig}
-          />
+          <ConfigDrawer configs={configs} onLoad={loadConfig} onDelete={deleteConfig} />
           <button className="secondary" onClick={handleReset}>
             Reset All
           </button>
