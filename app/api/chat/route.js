@@ -33,14 +33,15 @@ export async function POST(request) {
     );
   }
 
-  const { message, dtMs, mode } = await request.json();
+  const { message, dtMs, mode, systemPrompt: customSystemPrompt } = await request.json();
   if (!message) {
     return NextResponse.json({ error: "Missing message" }, { status: 400 });
   }
 
   const dtValue = Number.isFinite(Number(dtMs)) ? Number(dtMs) : 120;
   const systemPrompt =
-    mode === "plain" ? buildPlainPrompt() : buildSystemPrompt(dtValue);
+    customSystemPrompt ||
+    (mode === "plain" ? buildPlainPrompt() : buildSystemPrompt(dtValue));
 
   const payload = {
     model: process.env.DEEPSEEK_MODEL || DEFAULT_MODEL,
