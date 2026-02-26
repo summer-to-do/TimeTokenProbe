@@ -13,6 +13,7 @@
   --shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
   --radius: 16px;
   --radius-sm: 10px;
+  --panel-height: calc(100vh - 260px);
 }
 
 /* ─── Reset & Base ─────────────────────────────────────────────────────────── */
@@ -60,11 +61,7 @@ main { position: relative; z-index: 1; }
 }
 
 /* ─── Hero ─────────────────────────────────────────────────────────────────── */
-.hero {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+.hero { display: flex; flex-direction: column; gap: 8px; }
 .hero h1 {
   font-size: clamp(2rem, 3.5vw, 3rem);
   letter-spacing: -0.03em;
@@ -79,62 +76,12 @@ main { position: relative; z-index: 1; }
   max-width: 640px;
 }
 
-/* ─── System Prompt Editor ─────────────────────────────────────────────────── */
-.sysprompt-wrap {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.sysprompt-toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 0.85rem;
-  padding: 10px 14px;
-  cursor: pointer;
-  text-align: left;
-  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
-  transition: color 0.2s;
-}
-.sysprompt-toggle:hover { color: var(--text); }
-.sysprompt-caret { font-size: 0.75rem; opacity: 0.6; }
-.sysprompt-preview {
-  flex: 1;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
-  font-size: 0.8rem;
-  opacity: 0.6;
-}
-.sysprompt-textarea {
-  display: block;
-  width: 100%;
-  background: var(--card-strong);
-  color: var(--text);
-  border: none;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-  padding: 12px 14px;
-  font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
-  font-size: 0.85rem;
-  resize: vertical;
-  outline: none;
-  line-height: 1.6;
-}
-
 /* ─── Dual Panel ───────────────────────────────────────────────────────────── */
 .dual-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   gap: 16px;
-  flex: 1;
-  min-height: 600px;
+  align-items: start;
 }
 
 /* ─── Debug Panel ──────────────────────────────────────────────────────────── */
@@ -147,14 +94,12 @@ main { position: relative; z-index: 1; }
   flex-direction: column;
   gap: 14px;
   backdrop-filter: blur(12px);
+  height: var(--panel-height);
+  min-height: 600px;
   overflow-y: auto;
 }
 
-.panel-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+.panel-header { display: flex; align-items: center; gap: 10px; }
 
 .panel-badge {
   font-size: 0.72rem;
@@ -186,26 +131,12 @@ main { position: relative; z-index: 1; }
   border-radius: 999px;
 }
 
-.panel-subtitle {
-  font-size: 0.78rem;
-  color: var(--muted);
-}
+.panel-subtitle { font-size: 0.78rem; color: var(--muted); }
 
 /* ─── Scenario Bar ─────────────────────────────────────────────────────────── */
-.scenario-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.scenario-label {
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-.scenario-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
+.scenario-bar { display: flex; flex-direction: column; gap: 7px; }
+.scenario-label { font-size: 0.78rem; color: var(--muted); }
+.scenario-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ─── Chip ──────────────────────────────────────────────────────────────────  */
 .chip {
@@ -223,6 +154,15 @@ main { position: relative; z-index: 1; }
   transition: background 0.18s, border-color 0.18s;
 }
 .chip:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.22); }
+
+/* Education scenario chips */
+.chip--edu {
+  border-color: rgba(107, 229, 160, 0.3);
+  background: rgba(107, 229, 160, 0.06);
+  color: var(--accent-green);
+}
+.chip--edu:hover { background: rgba(107, 229, 160, 0.12); border-color: rgba(107, 229, 160, 0.5); }
+
 .chip-sub {
   font-size: 0.68rem;
   color: var(--muted);
@@ -266,6 +206,97 @@ main { position: relative; z-index: 1; }
   opacity: 0.75;
 }
 
+/* ─── Mode Sections ─────────────────────────────────────────────────────────  */
+.mode-section { padding-top: 12px; }
+
+.mode-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.mode-badge--orange {
+  background: rgba(255, 178, 107, 0.2);
+  color: var(--accent);
+  border: 1px solid rgba(255, 178, 107, 0.4);
+}
+.mode-badge--blue {
+  background: rgba(123, 195, 255, 0.15);
+  color: var(--accent-blue);
+  border: 1px solid rgba(123, 195, 255, 0.3);
+}
+.mode-badge--gray {
+  background: rgba(255,255,255,0.07);
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
+}
+
+.mode-section--orange { border-top-color: rgba(255, 178, 107, 0.2); }
+.mode-section--blue   { border-top-color: rgba(123, 195, 255, 0.2); }
+.mode-section--gray   { border-top-color: var(--line); }
+
+.mode-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ─── Mode Prompt Editor ────────────────────────────────────────────────────  */
+.mode-prompt-wrap {
+  background: var(--card-strong);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.mode-prompt-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  transition: color 0.2s;
+}
+.mode-prompt-toggle:hover { color: var(--text); }
+.sysprompt-caret { font-size: 0.72rem; opacity: 0.6; }
+.sysprompt-preview {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
+  font-size: 0.78rem;
+  opacity: 0.55;
+}
+.sysprompt-textarea {
+  display: block;
+  width: 100%;
+  background: var(--card-strong);
+  color: var(--text);
+  border: none;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding: 10px 12px;
+  font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
+  font-size: 0.82rem;
+  resize: vertical;
+  outline: none;
+  line-height: 1.6;
+}
+
 /* ─── Token Row ─────────────────────────────────────────────────────────────  */
 .token-row {
   display: flex;
@@ -283,10 +314,7 @@ main { position: relative; z-index: 1; }
   user-select: none;
 }
 
-.token-text {
-  color: var(--text);
-  white-space: pre-wrap;
-}
+.token-text { color: var(--text); white-space: pre-wrap; }
 
 /* ─── Time Bar ──────────────────────────────────────────────────────────────  */
 .timebar {
@@ -303,7 +331,6 @@ main { position: relative; z-index: 1; }
   transition: width 0.08s;
   flex-shrink: 0;
 }
-
 .timebar-label {
   font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
   font-size: 0.68rem;
@@ -313,7 +340,6 @@ main { position: relative; z-index: 1; }
   text-shadow: 0 1px 3px rgba(0,0,0,0.7);
   padding: 0 3px;
 }
-
 .timebar-handle {
   position: absolute;
   right: -5px;
@@ -327,7 +353,7 @@ main { position: relative; z-index: 1; }
 /* ─── Textarea ──────────────────────────────────────────────────────────────  */
 .debug-textarea {
   width: 100%;
-  min-height: 120px;
+  min-height: 100px;
   background: var(--card-strong);
   color: var(--text);
   border: 1px solid var(--line);
@@ -359,16 +385,9 @@ main { position: relative; z-index: 1; }
   flex: 1;
   min-width: 160px;
 }
-.range-label {
-  font-size: 0.78rem;
-  color: var(--muted);
-}
+.range-label { font-size: 0.78rem; color: var(--muted); }
 .range-label strong { color: var(--accent); }
-input[type="range"] {
-  width: 100%;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
+input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
 
 /* ─── Pill ──────────────────────────────────────────────────────────────────  */
 .pill {
@@ -390,29 +409,154 @@ input[type="range"] {
   border: 1px dashed rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-sm);
   padding: 10px 13px;
-  min-height: 60px;
+  min-height: 52px;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   color: var(--text);
   line-height: 1.65;
 }
-.mono-preview--plain {
-  opacity: 0.7;
-  border-style: solid;
-}
+.mono-preview--plain { opacity: 0.7; border-style: solid; }
 .muted { color: var(--muted); opacity: 0.5; }
 
-/* ─── Conversation Panel ────────────────────────────────────────────────────  */
+/* ─── Mode Render Area ──────────────────────────────────────────────────────  */
+/* Inline temporal rendering for each debug mode section */
+
+.mode-render-area {
+  position: relative;
+  background: rgba(9, 10, 18, 0.55);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  padding: 10px 13px;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.2s;
+}
+
+.mode-render-area--active {
+  border-color: rgba(255, 255, 255, 0.18);
+  border-style: solid;
+}
+
+.mode-render-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid;
+  align-self: flex-start;
+  animation: tpi-fadein 0.15s ease;
+}
+
+.mode-render-status--typing {
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--muted);
+  background: rgba(255,255,255,0.04);
+}
+
+.mode-render-status--pause {
+  background: rgba(0,0,0,0.25);
+}
+
+.mode-render-text {
+  font-size: 0.93rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+}
+
+/* Raw temporal string shown below rendered text (Mode A only) */
+.mode-render-raw {
+  font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
+  font-size: 0.71rem;
+  color: var(--muted);
+  opacity: 0.5;
+  line-height: 1.5;
+  word-break: break-all;
+  border-top: 1px solid var(--line);
+  padding-top: 5px;
+  margin-top: 2px;
+}
+
+/* ─── Input Replay ───────────────────────────────────────────────────────────  */
+
+.input-replay-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-replay-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip--play {
+  color: var(--accent-blue);
+  border-color: rgba(123, 195, 255, 0.25);
+}
+.chip--play:hover:not(:disabled) {
+  background: rgba(123, 195, 255, 0.08);
+  border-color: rgba(123, 195, 255, 0.4);
+}
+
+.input-replay-display {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 12px;
+  background: rgba(123, 195, 255, 0.05);
+  border: 1px solid rgba(123, 195, 255, 0.12);
+  border-radius: var(--radius-sm);
+  min-height: 36px;
+  animation: tpi-fadein 0.18s ease;
+}
+
+.input-replay-label {
+  font-size: 0.68rem;
+  color: var(--accent-blue);
+  opacity: 0.65;
+  font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
+  flex-shrink: 0;
+}
+
+.input-replay-text {
+  font-size: 0.92rem;
+  color: var(--text);
+  line-height: 1.6;
+  flex: 1;
+}
+
+.input-replay-pause {
+  font-size: 0.72rem;
+  font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
+  font-weight: 600;
+  flex-shrink: 0;
+  animation: pulse-text 1.5s ease-in-out infinite;
+}
+
+/* ─── Conversation Panel ─────────────────────────────────────────────────── */
 .conv-panel {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   backdrop-filter: blur(12px);
+  height: var(--panel-height);
+  min-height: 600px;
+  overflow: hidden;
+  position: sticky;
+  top: 20px;
 }
 
 .conv-header {
@@ -434,13 +578,91 @@ input[type="range"] {
   border-radius: 999px;
 }
 
+/* ─── Temporal Presence Indicator ───────────────────────────────────────────  */
+/* Design ref: Social Presence Theory (Short et al. 1976), Workspace Awareness  */
+/* (Gutwin & Greenberg 2002), collaborative presence UI (Notion, Figma, Feishu) */
+.tpi-slot {
+  flex-shrink: 0;
+  padding: 0 18px;
+  min-height: 0;
+  overflow: hidden;
+  transition: min-height 0.2s;
+}
+.tpi-slot:has(.tpi) { min-height: 40px; padding: 6px 18px; }
+
+.tpi {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  animation: tpi-fadein 0.2s ease;
+}
+
+@keyframes tpi-fadein {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tpi--typing {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--line-strong);
+  color: var(--muted);
+}
+
+.tpi--pause {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Typing dots */
+.tpi-dots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+.tpi-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: tpi-bounce 1.2s ease-in-out infinite;
+}
+.tpi-dot:nth-child(2) { animation-delay: 0.15s; }
+.tpi-dot:nth-child(3) { animation-delay: 0.30s; }
+
+@keyframes tpi-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40%           { transform: translateY(-4px); opacity: 1; }
+}
+
+/* Pause beacon */
+.tpi-beacon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: tpi-breathe 1.5s ease-in-out infinite;
+}
+
+@keyframes tpi-breathe {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50%      { opacity: 1;   transform: scale(1.2); }
+}
+
+.tpi-label { font-size: 0.78rem; }
+
+/* ─── Scrollable body ───────────────────────────────────────────────────────  */
 .conv-body {
   flex: 1;
   overflow-y: auto;
-  padding: 18px;
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .conv-empty {
@@ -458,20 +680,31 @@ input[type="range"] {
 .conv-empty-icon { font-size: 2.4rem; opacity: 0.4; }
 .conv-empty-sub { font-size: 0.8rem; opacity: 0.6; }
 
-/* ─── Chat Bubbles ──────────────────────────────────────────────────────────  */
-.bubble-row {
+/* ─── Conversation Turn ─────────────────────────────────────────────────────  */
+.conv-turn {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.bubble-row--left { justify-content: flex-start; }
+
+/* ─── Chat Bubbles ──────────────────────────────────────────────────────────  */
+.bubble-row { display: flex; }
+.bubble-row--left  { justify-content: flex-start; }
 .bubble-row--right { justify-content: flex-end; }
 
 .bubble {
   max-width: 85%;
   border-radius: 16px;
-  padding: 12px 15px;
+  padding: 11px 14px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+}
+
+.bubble--user {
+  background: rgba(255, 178, 107, 0.08);
+  border: 1px solid rgba(255, 178, 107, 0.2);
+  border-bottom-right-radius: 4px;
 }
 
 .bubble--plain {
@@ -483,7 +716,7 @@ input[type="range"] {
 .bubble--temporal {
   background: linear-gradient(135deg, rgba(123, 195, 255, 0.1), rgba(107, 229, 160, 0.06));
   border: 1px solid rgba(123, 195, 255, 0.18);
-  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
 }
 
 .bubble-label {
@@ -497,6 +730,14 @@ input[type="range"] {
   gap: 6px;
 }
 
+.bubble-time {
+  font-weight: 400;
+  font-size: 0.68rem;
+  opacity: 0.6;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .pause-indicator {
   color: var(--accent-blue);
   font-weight: 400;
@@ -505,15 +746,55 @@ input[type="range"] {
 
 @keyframes pulse-text {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  50%       { opacity: 0.4; }
 }
 
 .bubble-text {
-  font-size: 0.97rem;
+  font-size: 0.96rem;
   line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.bubble-temporal-hint {
+  font-family: "SFMono-Regular", "Fira Code", "Fira Mono", "Roboto Mono", Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0.55;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+/* Replay button — inline below AI response, not centered */
+.bubble-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  margin-top: 2px;
+}
+
+.replay-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.04);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.replay-btn:hover:not(:disabled) {
+  background: rgba(123, 195, 255, 0.1);
+  border-color: rgba(123, 195, 255, 0.3);
+  color: var(--accent-blue);
+}
+.replay-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ─── AI Cursor ─────────────────────────────────────────────────────────────  */
 .ai-cursor {
@@ -532,7 +813,7 @@ input[type="range"] {
 
 @keyframes cursor-breathe {
   0%, 100% { opacity: 0.15; transform: scaleY(0.85); }
-  50% { opacity: 1; transform: scaleY(1); }
+  50%       { opacity: 1;   transform: scaleY(1); }
 }
 
 .ai-cursor--blink {
@@ -544,6 +825,53 @@ input[type="range"] {
   background: var(--accent-blue);
   box-shadow: 0 0 6px var(--accent-blue);
   animation: cursor-breathe 1500ms ease-in-out infinite;
+}
+
+/* ─── Conversation Input Area ───────────────────────────────────────────────  */
+.conv-input-area {
+  flex-shrink: 0;
+  border-top: 1px solid var(--line);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--card-strong);
+}
+
+.conv-token-row {
+  max-height: 60px;
+  overflow-y: auto;
+}
+
+.conv-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.conv-textarea {
+  flex: 1;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.94rem;
+  resize: none;
+  outline: none;
+  line-height: 1.55;
+  transition: border-color 0.2s;
+}
+.conv-textarea:focus {
+  border-color: rgba(123, 195, 255, 0.4);
+  box-shadow: 0 0 0 2px rgba(123, 195, 255, 0.1);
+}
+
+.conv-send-btn {
+  flex-shrink: 0;
+  padding: 9px 18px;
+  align-self: flex-end;
 }
 
 /* ─── Bottom Toolbar ────────────────────────────────────────────────────────  */
@@ -605,11 +933,7 @@ input[type="range"] {
   padding: 6px;
 }
 
-.config-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+.config-item { display: flex; align-items: center; gap: 6px; }
 
 .config-item-btn {
   flex: 1;
@@ -627,7 +951,6 @@ input[type="range"] {
   transition: background 0.15s;
 }
 .config-item-btn:hover { background: rgba(255,255,255,0.09); }
-
 .config-item-time {
   font-size: 0.7rem;
   color: var(--muted);
@@ -639,7 +962,6 @@ input[type="range"] {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .config-item-del {
   padding: 4px 8px;
   background: none;
@@ -698,11 +1020,10 @@ button:disabled {
 
 /* ─── Responsive ────────────────────────────────────────────────────────────  */
 @media (max-width: 960px) {
-  .dual-panel {
-    grid-template-columns: 1fr;
-  }
-  .debug-panel { max-height: none; }
-  .conv-panel { min-height: 400px; }
+  .dual-panel { grid-template-columns: 1fr; }
+  :root { --panel-height: auto; }
+  .debug-panel { max-height: none; height: auto; }
+  .conv-panel  { min-height: 500px; height: 70vh; position: static; }
   .toolbar { flex-direction: column; align-items: flex-start; }
   .toolbar-left, .toolbar-right { width: 100%; }
 }
